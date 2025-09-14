@@ -2,7 +2,7 @@ import { Plus, MapPin, Calendar, DollarSign, Users, TrendingUp } from "lucide-re
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Navigation from "@/components/Navigation";
+import Header from "@/components/Header";
 
 const Dashboard = () => {
   // Mock data for demonstration
@@ -62,7 +62,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
+      <Header />
       
       <main className="pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
