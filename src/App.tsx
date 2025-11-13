@@ -15,6 +15,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Header from "./components/Header"; // Import the Header
 import TripDetail from "./pages/TripDetail";
+import MyTrips from "./pages/MyTrips";
 
 const queryClient = new QueryClient();
 
@@ -40,13 +41,13 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/trips" element={<Dashboard />} />
+                <Route path="/my-trips" element={<MyTrips />} />
                 <Route path="/budget" element={<Dashboard />} />
                 <Route path="/friends" element={<Dashboard />} />
                 <Route path="/trip/new" element={<TripCreator />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
-                <Route path="/trips/:tripId" element={<TripDetail />} />
+                <Route path="/my-trips/:tripId" element={<TripDetail />} />
               </Route>
             </Route>
 

@@ -48,7 +48,7 @@ const Header = () => {
 
   const navLinks = [
     { name: "Dashboard", href: "/dashboard", icon: Calendar },
-    { name: "My Trips", href: "/trips", icon: MapPin },
+    { name: "My Trips", href: "/my-trips", icon: MapPin },
     { name: "Budget", href: "/budget", icon: DollarSign },
     { name: "Friends", href: "/friends", icon: Users },
   ];
