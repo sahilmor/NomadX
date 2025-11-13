@@ -192,6 +192,45 @@ export type Database = {
           },
         ]
       }
+      friends: {
+        Row: {
+          created_at: string
+          friend_id: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          friend_id: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friends_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friends_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ItineraryItem: {
         Row: {
           cost: number | null
@@ -242,6 +281,51 @@ export type Database = {
             columns: ["tripId"]
             isOneToOne: false
             referencedRelation: "Trip"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          related_entity_id: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          related_entity_id?: string | null
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          related_entity_id?: string | null
+          type?: Database["public"]["Enums"]["notification_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "User"
             referencedColumns: ["id"]
           },
         ]
@@ -572,10 +656,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      signup_with_username: {
-        Args: { email: string; password: string; username: string }
-        Returns: Json
-      }
+      [_ in never]: never
     }
     Enums: {
       ExpenseCategory:
@@ -593,6 +674,11 @@ export type Database = {
         | "SIGHT"
         | "ACTIVITY"
         | "REST"
+      notification_type:
+        | "FRIEND_ADDED"
+        | "TRIP_INVITE"
+        | "PLAN_READY"
+        | "WELCOME"
       SubscriptionProvider: "STRIPE" | "RAZORPAY"
       SubscriptionTier: "FREE" | "PREMIUM"
       TripRole: "OWNER" | "EDITOR" | "VIEWER"
@@ -735,6 +821,12 @@ export const Constants = {
         "OTHER",
       ],
       ItineraryItemKind: ["MOVE", "STAY", "FOOD", "SIGHT", "ACTIVITY", "REST"],
+      notification_type: [
+        "FRIEND_ADDED",
+        "TRIP_INVITE",
+        "PLAN_READY",
+        "WELCOME",
+      ],
       SubscriptionProvider: ["STRIPE", "RAZORPAY"],
       SubscriptionTier: ["FREE", "PREMIUM"],
       TripRole: ["OWNER", "EDITOR", "VIEWER"],

@@ -13,13 +13,12 @@ import { getOrCreateUserProfile, updateUserProfile, updateAuthUserMetadata } fro
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const currencies = [
-  { value: "INR", label: "INR - US Dollar" },
+  { value: "INR", label: "INR - Indian Rupee" },
   { value: "EUR", label: "EUR - Euro" },
   { value: "GBP", label: "GBP - British Pound" },
   { value: "AUD", label: "AUD - Australian Dollar" },
   { value: "CAD", label: "CAD - Canadian Dollar" },
   { value: "JPY", label: "JPY - Japanese Yen" },
-  { value: "INR", label: "INR - Indian Rupee" },
   { value: "SGD", label: "SGD - Singapore Dollar" },
 ];
 

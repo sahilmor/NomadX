@@ -1,11 +1,14 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesUpdate, TablesInsert } from '@/integrations/supabase/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 type UserProfile = Tables<'User'>;
 type UserProfileUpdate = TablesUpdate<'User'>;
 type UserProfileInsert = TablesInsert<'User'>;
+type FriendInsert = TablesInsert<'friends'>;
+type Friend = Tables<'friends'>;
 
-// Ensure user exists in database (create if doesn't exist)
 export const ensureUserExists = async (details: {
   userId: string;
   email: string;
@@ -13,14 +16,12 @@ export const ensureUserExists = async (details: {
   userName?: string;
 }) => {
   try {
-    // First, try to get existing user
     const { data: existingUser, error: fetchError } = await supabase
       .from('User')
       .select('*')
       .eq('id', details.userId)
       .maybeSingle();
 
-    // If user exists, return it  
     if (existingUser) {
       return { data: existingUser as UserProfile, error: null };
     }
@@ -28,7 +29,6 @@ export const ensureUserExists = async (details: {
     const displayName = details.name || details.userName;
     const displayUserName = details.userName || `User_${details.userId.substring(0, 8)}`;
 
-    // If user doesn't exist, create it
     const newUser: UserProfileInsert = {
       id: details.userId,
       email: details.email,
@@ -92,13 +92,11 @@ export const getOrCreateUserProfile = async (userId: string, email: string, name
 
 export const updateUserProfile = async (userId: string, updates: UserProfileUpdate) => {
   try {
-    // Ensure user exists first
     const authUser = (await supabase.auth.getUser()).data.user;
     if (!authUser) {
       return { data: null, error: { message: 'User not authenticated' } };
     }
 
-    // This call ensures the user exists before updating
     await getOrCreateUserProfile(userId, authUser.email || '', updates.name || undefined);
 
     const { data, error } = await supabase
@@ -131,7 +129,7 @@ export const updateAuthUserMetadata = async (metadata: { full_name?: string; ava
       return { data: null, error };
     }
 
-    return { data, error: null };
+    return { data: null, error };
   } catch (error: any) {
     console.error('Error in updateAuthUserMetadata:', error);
     return { data: null, error };
@@ -180,4 +178,194 @@ export const searchUsersByUsername = async (searchText: string, currentUserId: s
     console.error('Error in searchUsersByUsername:', error);
     return { data: null, error };
   }
+};
+
+export const getFriends = async (userId: string) => {
+  try {
+    const { data: sent, error: sentError } = await supabase
+      .from('friends')
+      .select(`
+        friend_id,
+        User:User!friend_id ( id, userName, name, image )
+      `)
+      .eq('user_id', userId)
+      .eq('status', 'accepted'); 
+
+    if (sentError) throw sentError;
+
+    const { data: received, error: receivedError } = await supabase
+      .from('friends')
+      .select(`
+        user_id,
+        User:User!user_id ( id, userName, name, image )
+      `)
+      .eq('friend_id', userId)
+      .eq('status', 'accepted');
+
+    if (receivedError) throw receivedError;
+
+    const sentFriends = sent.map(f => f.User).filter(Boolean) as UserProfile[];
+    const receivedFriends = received.map(f => f.User).filter(Boolean) as UserProfile[];
+    
+    const allFriends = new Map<string, UserProfile>();
+    sentFriends.forEach(f => allFriends.set(f.id, f));
+    receivedFriends.forEach(f => allFriends.set(f.id, f));
+
+    return { data: Array.from(allFriends.values()), error: null };
+
+  } catch (error: any) {
+    console.error('Error fetching friends:', error);
+    return { data: null, error };
+  }
+};
+
+export const useFriends = (userId: string) => {
+  return useQuery({
+    queryKey: ['friends', userId],
+    queryFn: async () => {
+      const { data, error } = await getFriends(userId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!userId,
+  });
+};
+
+export const addFriend = async ({ userId, friendId }: { userId: string; friendId: string }) => {
+  try {
+    const newFriend: FriendInsert = {
+      user_id: userId,
+      friend_id: friendId,
+      status: 'pending',
+    };
+    
+    const { data, error } = await supabase
+      .from('friends')
+      .insert(newFriend)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        console.warn('Friend request already sent or exists');
+        return { data: null, error: { message: 'Friend request already sent or exists' } };
+      }
+      throw error;
+    }
+    
+    return { data, error: null };
+  } catch (error: any) {
+    console.error('Error adding friend:', error);
+    return { data: null, error };
+  }
+};
+
+export const useAddFriend = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: addFriend,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pendingRequests'] });
+    },
+    onError: (error) => {
+      console.error("Failed to add friend:", error);
+    }
+  });
+};
+
+export const getPendingRequests = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('friends')
+      .select(`
+        id, 
+        user_id,
+        User:User!user_id (
+          id,
+          userName,
+          name,
+          image
+        )
+      `)
+      .eq('friend_id', userId)
+      .eq('status', 'pending');
+
+    if (error) throw error;
+
+    const requests = data.map(req => ({
+      requestId: req.id,
+      sender: req.User as UserProfile
+    })).filter(r => r.sender);
+    
+    return { data: requests, error: null };
+  } catch (error: any) {
+    console.error('Error fetching pending requests:', error);
+    return { data: null, error };
+  }
+};
+
+export const usePendingRequests = (userId: string) => {
+  return useQuery({
+    queryKey: ['pendingRequests', userId],
+    queryFn: async () => {
+      const { data, error } = await getPendingRequests(userId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!userId,
+  });
+};
+
+export const acceptFriendRequest = async (requestId: string) => {
+  try {
+    const { data: updatedData, error: updateError } = await supabase
+      .from('friends')
+      .update({ status: 'accepted' })
+      .eq('id', requestId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+    if (!updatedData) throw new Error("Could not find request to update.");
+
+    const newFriend: FriendInsert = {
+      user_id: updatedData.friend_id, 
+      friend_id: updatedData.user_id, 
+      status: 'accepted',
+    };
+
+    const { data, error } = await supabase
+      .from('friends')
+      .insert(newFriend);
+
+    if (error) {
+      if (error.code === '23505') {
+        console.warn('Reverse friendship already exists.');
+      } else {
+        throw error;
+      }
+    }
+    
+    return { data, error: null };
+  } catch (error: any) {
+    console.error('Error accepting friend request:', error);
+    return { data: null, error };
+  }
+};
+
+export const useAcceptFriendRequest = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: acceptFriendRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['friends', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['pendingRequests', user?.id] });
+    },
+    onError: (error) => {
+      console.error("Failed to accept friend request:", error);
+    }
+  });
 };

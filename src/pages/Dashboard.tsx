@@ -354,9 +354,11 @@ const Dashboard = () => {
                   <p className="text-sm text-white/90">
                     "The best backpacking trips are planned with friends and executed with spontaneity."
                   </p>
+                  <Link to='/inspirations'>
                   <Button size="sm" variant="outline" className="bg-white/20 border-white/30 text-white hover:bg-white/30">
                     Get Inspired
                   </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>

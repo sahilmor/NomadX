@@ -6,9 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { createTrip, generateTripPlan } from "@/services/trip.service";
+import { createTrip, generateTripPlan, addTripMembers } from "@/services/trip.service";
 import { searchUsersByUsername } from "@/services/user.service";
 import { useToast } from "@/components/ui/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,7 @@ type SearchUser = Pick<Tables<'User'>, 'id' | 'userName' | 'name' | 'image'>;
 const TripCreator = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [creating, setCreating] = useState(false);
@@ -33,7 +34,7 @@ const TripCreator = () => {
   const [isSearching, setIsSearching] = useState(false);
 
   const [tripData, setTripData] = useState({
-    title: "",
+    title: location.state?.title || "",
     startDate: "",
     endDate: "",
     currency: "INR",
@@ -159,9 +160,17 @@ const TripCreator = () => {
         throw result.error;
       }
 
-      // TODO: Add logic to invite friends
-      // const memberIds = tripData.invitedFriends.map(f => f.id);
-      // await addTripMembers(tripId, memberIds); 
+      const memberIds = tripData.invitedFriends.map(f => f.id);
+      if (memberIds.length > 0) {
+        const { error: inviteError } = await addTripMembers(tripId, memberIds);
+        if (inviteError) {
+          toast({
+            title: "Warning",
+            description: "Trip created, but failed to invite friends. You can add them from the trip page.",
+            variant: "destructive",
+          });
+        }
+      }
       
       toast({
         title: "Trip Created!",

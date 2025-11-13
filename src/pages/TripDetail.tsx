@@ -3,6 +3,7 @@ import {
   useTrip,
   useTripMembers,
   TripMemberWithUser,
+  TripWithOwner, // <-- Import the new type
 } from "@/services/trip.service";
 import {
   useTripItinerary,
@@ -44,9 +45,69 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { Tables } from "@/integrations/supabase/types";
+
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconUrl: markerIcon,
+  iconRetinaUrl: markerIcon2x,
+  shadowUrl: markerShadow,
+});
+
+type Poi = Tables<'Poi'>;
+interface TripMapProps {
+  pois: Poi[] | undefined;
+}
+
+const TripMap: React.FC<TripMapProps> = ({ pois }) => {
+  // Filter POIs that have valid coordinates
+  const validPOIs = useMemo(() => {
+    return pois?.filter(poi => poi.lat && poi.lng && poi.lat !== 0 && poi.lng !== 0) || [];
+  }, [pois]);
+
+  // Set default center or center on first POI
+  const mapCenter: L.LatLngExpression = 
+    validPOIs.length > 0 
+      ? [validPOIs[0].lat, validPOIs[0].lng] 
+      : [51.505, -0.09]; // Default to London if no POIs
+
+  return (
+    <Card className="border-0 bg-card">
+      <CardContent className="p-0">
+        <MapContainer 
+          center={mapCenter} 
+          zoom={10} 
+          scrollWheelZoom={true} 
+          className="h-[500px] w-full rounded-lg"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          {validPOIs.map(poi => (
+            <Marker key={poi.id} position={[poi.lat, poi.lng]}>
+              <Popup>
+                <b>{poi.name}</b>
+                {poi.tags && <br />}
+                {poi.tags?.join(', ')}
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+      </CardContent>
+    </Card>
+  );
+};
+
 const TripDetail = () => {
   const { tripId } = useParams<{ tripId: string }>();
-  const { user } = useAuth();
+  const { isLoading: isAuthLoading } = useAuth(); // <-- Get auth loading state
 
   if (!tripId) {
     return (
@@ -56,36 +117,18 @@ const TripDetail = () => {
     );
   }
 
-  const { data: trip, isLoading: isLoadingTrip } = useTrip(tripId);
+  // Use the correct type for the trip data
+  const { data: trip, isLoading: isLoadingTrip } = useTrip(tripId) as { data: TripWithOwner | null, isLoading: boolean };
   const { data: itinerary, isLoading: isLoadingItinerary } =
     useTripItinerary(tripId);
   const { data: pois, isLoading: isLoadingPOIs } = useTripPOIs(tripId);
   const { data: members, isLoading: isLoadingMembers } =
     useTripMembers(tripId);
 
+  // Add auth loading to the main isLoading check
   const isLoading =
-    isLoadingTrip || isLoadingItinerary || isLoadingPOIs || isLoadingMembers;
+    isAuthLoading || isLoadingTrip || isLoadingItinerary || isLoadingPOIs || isLoadingMembers;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <LoadingSpinner fullscreen text="Loading trip details..." />
-      </div>
-    );
-  }
-
-  if (!trip) {
-    return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        Error: Trip not found.
-      </div>
-    );
-  }
-
-  const startDate = new Date(trip.startDate);
-  const endDate = new Date(trip.endDate);
-  const duration = differenceInDays(endDate, startDate) + 1;
-  
   const budgetData = useMemo(() => {
     if (!itinerary || !trip) {
       return {
@@ -100,10 +143,8 @@ const TripDetail = () => {
       };
     }
 
-    // 1. Get all items with a cost
     const expenseItems = itinerary.filter(item => item.cost && item.cost > 0);
     
-    // 2. Calculate totals
     let totalSpent = 0;
     let spentOnStay = 0;
     let spentOnFood = 0;
@@ -142,33 +183,41 @@ const TripDetail = () => {
       spentOnFood,
       spentOnMove,
       spentOnActivity,
-      expenseItems, // This is the filtered list
+      expenseItems,
       budgetRemaining,
       budgetProgress,
     };
   }, [itinerary, trip]);
 
-  const allMembers = useMemo(() => {
-    if (!trip || !user) return [];
+  // This list *only* includes invited members, not the owner
+  const invitedMembers = useMemo(() => {
+    if (!trip || !members) return [];
+    return members.filter(m => m.userId !== trip.ownerId);
+  }, [members, trip]);
 
-    // 1. Create the owner object
-    const owner = {
-      userId: trip.ownerId,
-      role: 'OWNER',
-      User: {
-        id: trip.ownerId,
-        name: user.id === trip.ownerId ? (user.user_metadata?.full_name || user.user_metadata?.username) : 'Owner',
-        image: user.id === trip.ownerId ? user.user_metadata?.avatar_url : null
-      }
-    };
-    
-    // 2. Filter out the owner from the members list, if they are in it
-    const otherMembers = members?.filter(m => m.userId !== trip.ownerId) || [];
+  // This is the CRITICAL fix for the white screen.
+  // We must wait for ALL hooks to finish before rendering.
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner fullscreen text="Loading trip details..." />
+      </div>
+    );
+  }
 
-    // 3. Return the owner at the front of the list
-    return [owner, ...otherMembers];
+  // This check now runs *after* loading is complete.
+  if (!trip) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <p className="text-lg text-muted-foreground">Trip not found or you do not have permission to view it.</p>
+      </div>
+    );
+  }
 
-  }, [members, trip, user]);
+  // These are now safe to calculate because `trip` is guaranteed to exist
+  const startDate = new Date(trip.startDate);
+  const endDate = new Date(trip.endDate);
+  const duration = differenceInDays(endDate, startDate) + 1;
 
   return (
     <div className="min-h-screen bg-background">
@@ -234,14 +283,14 @@ const TripDetail = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {itinerary?.length ? (
-                  itinerary.map((item) => (
+                {itinerary && itinerary.length > 0 ? (
+                  itinerary.map((item, index) => (
                     <div key={item.id} className="flex gap-4">
                       <div className="flex flex-col items-center">
                         <div className="w-12 h-12 rounded-lg bg-muted flex-shrink-0 flex items-center justify-center">
                           <Clock className="w-6 h-6 text-primary" />
                         </div>
-                        <div className="w-px flex-1 bg-border" />
+                        {index < itinerary.length - 1 && <div className="w-px flex-1 bg-border" />}
                       </div>
                       <div className="pb-6 w-full">
                         <p className="text-sm text-muted-foreground">
@@ -258,7 +307,7 @@ const TripDetail = () => {
                     </div>
                   ))
                 ) : (
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-center">
                     No itinerary items found for this trip.
                   </p>
                 )}
@@ -275,7 +324,7 @@ const TripDetail = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pois?.length ? (
+                {pois && pois.length > 0 ? (
                   pois.map((poi) => (
                     <Card key={poi.id} className="bg-muted/30">
                       <CardHeader>
@@ -294,12 +343,13 @@ const TripDetail = () => {
                     </Card>
                   ))
                 ) : (
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-center">
                     No points of interest found.
                   </p>
                 )}
               </CardContent>
             </Card>
+            <TripMap pois={pois ?? undefined} />
           </TabsContent>
 
           <TabsContent value="budget" className="space-y-6">
@@ -420,34 +470,38 @@ const TripDetail = () => {
             <Card className="border-0 bg-card">
               <CardHeader>
                 <CardTitle>Trip Members</CardTitle>
+                <CardDescription>Other members invited to this trip.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Use the new `allMembers` list */}
-                {allMembers?.map((member) => (
-                  <div
-                    key={member.userId}
-                    className="flex flex-col items-center space-y-2 p-4 bg-muted/30 rounded-lg"
-                  >
-                    <Avatar>
-                      <AvatarImage src={member.User?.image ?? undefined} />
-                      <AvatarFallback>
-                        {member.User?.name
-                          ? member.User.name[0].toUpperCase()
-                          : "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium text-sm text-center break-words">
-                      {member.User?.name}
-                    </span>
-                    <Badge
-                      variant={
-                        member.role === "OWNER" ? "default" : "secondary"
-                      }
-                    >
-                      {member.role}
-                    </Badge>
+              <CardContent>
+                {invitedMembers && invitedMembers.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {invitedMembers.map((member: TripMemberWithUser) => (
+                      <div
+                        key={member.userId}
+                        className="flex items-center space-x-4 bg-muted/30 p-4 rounded-lg"
+                      >
+                        <Avatar>
+                          <AvatarImage src={member.User?.image ?? undefined} />
+                          <AvatarFallback>
+                            {(member.User?.name || member.User?.userName)?.[0]?.toUpperCase() || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                        <span className="font-medium text-sm text-center break-words">
+                          {member.User?.name || member.User?.userName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          @{member.User?.userName}
+                        </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-muted-foreground text-center">
+                    No other members have been invited to this trip.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

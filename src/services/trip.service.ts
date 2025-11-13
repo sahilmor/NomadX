@@ -9,8 +9,12 @@ type UserProfile = Tables<'User'>;
 type TripMember = Tables<'TripMember'>;
 type TripMemberInsert = TablesInsert<'TripMember'>;
 
+export type TripWithOwner = Trip & {
+  User: Pick<UserProfile, 'id' | 'name' | 'userName' | 'image'> | null;
+};
+
 export type TripMemberWithUser = TripMember & {
-  User: Pick<UserProfile, 'id' | 'name' | 'image'> | null;
+  User: Pick<UserProfile, 'id' | 'name' | 'image' | 'userName'> | null;
 };
 
 const calculateDays = (startDate: string, endDate: string): number => {
@@ -148,7 +152,7 @@ export const getUserTrips = async (userId: string) => {
 
         return {
           ...trip,
-          membersCount: count || 0,
+          membersCount: (count || 0) + 1, // Add 1 for the owner
           days: calculateDays(trip.startDate, trip.endDate),
           formattedStartDate: formatDate(trip.startDate),
         };
@@ -183,16 +187,24 @@ export const getTripById = async (tripId: string) => {
   try {
     const { data, error } = await supabase
       .from('Trip')
-      .select('*')
+      .select(`
+        *,
+        User (
+          id,
+          name,
+          userName,
+          image
+        )
+      `)
       .eq('id', tripId)
-      .single();
+      .maybeSingle(); 
 
     if (error) {
       console.error('Error fetching trip:', error);
       return { data: null, error };
     }
 
-    return { data: data as Trip, error: null };
+    return { data: data as TripWithOwner | null, error: null };
   } catch (error: any) {
     console.error('Error in getTripById:', error);
     return { data: null, error };
@@ -260,7 +272,8 @@ export const getTripMembers = async (tripId: string) => {
         User (
           id,
           name,
-          image
+          image,
+          userName
         )
       `)
       .eq('tripId', tripId);

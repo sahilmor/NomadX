@@ -17,6 +17,7 @@ import TripDetail from "./pages/TripDetail";
 import MyTrips from "./pages/MyTrips";
 import Inspirations from "./pages/Inspiration";
 import InspirationDetail from "./pages/InspirationDetail";
+import Friends from "./pages/Friends";
 
 const queryClient = new QueryClient();
 
@@ -43,14 +44,13 @@ const App = () => (
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/my-trips" element={<MyTrips />} />
-                <Route path="/budget" element={<Dashboard />} />
-                <Route path="/friends" element={<Dashboard />} />
                 <Route path="/trip/new" element={<TripCreator />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/inspirations" element={<Inspirations />} />
                 <Route path="/inspirations/:id" element={<InspirationDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/my-trips/:tripId" element={<TripDetail />} />
+                <Route path="/friends" element={<Friends />} />
               </Route>
             </Route>
 

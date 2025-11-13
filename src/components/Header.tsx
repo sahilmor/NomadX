@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Menu, MapPin, Calendar, DollarSign, Users, LogOut, Settings, User as UserIcon, Compass } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, MapPin, Calendar, DollarSign, Users, LogOut, Settings, User as UserIcon, Compass, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatTimeAgo } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,6 +15,94 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth } from "@/contexts/AuthContext";
+import { NotificationWithActor, useMarkNotificationAsRead, useNotifications } from "@/services/notification.service";
+
+const getNotificationText = (notification: NotificationWithActor): string => {
+  const actorName = notification.actor?.name || notification.actor?.userName || 'Someone';
+  
+  switch (notification.type) {
+    case 'FRIEND_ADDED':
+      return `${actorName} sent you a friend request.`;
+    case 'TRIP_INVITE':
+      // In a real app, you'd fetch the trip title, but this is a good start
+      return `${actorName} invited you to a trip.`;
+    case 'PLAN_READY':
+      return `Your AI plan is ready to view.`;
+    default:
+      return "You have a new notification.";
+  }
+};
+
+// --- Reusable Notification Bell component (NOW DYNAMIC) ---
+const NotificationBell = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  // Fetch notifications dynamically
+  const { data: notifications, isLoading } = useNotifications(user?.id || "");
+  const markAsRead = useMarkNotificationAsRead();
+
+  const unreadNotifications = notifications?.filter(n => !n.is_read) || [];
+  const hasUnread = unreadNotifications.length > 0;
+
+  const handleNotificationClick = (notification: NotificationWithActor) => {
+    // Mark as read immediately
+    if (!notification.is_read) {
+      markAsRead.mutate(notification.id);
+    }
+
+    // Navigate to the correct page
+    if (notification.type === 'FRIEND_ADDED') {
+      navigate('/friends');
+    } else if (notification.type === 'TRIP_INVITE' && notification.related_entity_id) {
+      navigate(`/my-trips/${notification.related_entity_id}`);
+    }
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative text-foreground/80 hover:text-foreground hover:bg-white/10 rounded-full">
+          <Bell className="w-5 h-5" />
+          {hasUnread && (
+            <span className="absolute top-2 right-2 flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-coral opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-coral"></span>
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-80" align="end" forceMount>
+        <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {isLoading ? (
+          <DropdownMenuItem disabled>
+            <p className="text-sm text-muted-foreground text-center p-4">Loading...</p>
+          </DropdownMenuItem>
+        ) : notifications && notifications.length > 0 ? (
+          notifications.map(notif => (
+            <DropdownMenuItem 
+              key={notif.id} 
+              className={cn(
+                "flex flex-col items-start gap-1 p-3 cursor-pointer",
+                !notif.is_read && "bg-primary/5" // Highlight unread
+              )}
+              onClick={() => handleNotificationClick(notif)}
+            >
+              <p className="text-sm text-wrap font-medium">{getNotificationText(notif)}</p>
+              <p className="text-xs text-muted-foreground">{formatTimeAgo(notif.created_at)}</p>
+            </DropdownMenuItem>
+          ))
+        ) : (
+          <DropdownMenuItem disabled>
+            <p className="text-sm text-muted-foreground text-center p-4">No new notifications</p>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 const Header = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -42,7 +130,6 @@ const Header = () => {
     { name: "Dashboard", href: "/dashboard", icon: Calendar },
     { name: "My Trips", href: "/my-trips", icon: MapPin },
     { name: "Inspirations", href: "/inspirations", icon: Compass },
-    { name: "Budget", href: "/budget", icon: DollarSign },
     { name: "Friends", href: "/friends", icon: Users },
   ];
 
@@ -140,11 +227,14 @@ const Header = () => {
           </Link>
 
           {/* Right Side: Navigation and User Auth */}
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center">
             <div className="flex items-center space-x-2">
               <NavLinks />
             </div>
-            <AuthSection />
+            <div className="flex items-center space-x-4">
+              {user && <NotificationBell />}
+              <AuthSection />
+            </div>
           </div>
 
           {/* Mobile Menu */}
