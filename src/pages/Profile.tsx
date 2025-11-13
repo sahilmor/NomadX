@@ -66,7 +66,7 @@ const Profile = () => {
   const displayEmail = profile?.email || user.email || "";
   const displayImage = profile?.image || user.user_metadata?.avatar_url || null;
   const homeCity = profile?.homeCity || "Not set";
-  const homeCurrency = profile?.homeCurrency || "USD";
+  const homeCurrency = profile?.homeCurrency || "INR";
   const interests = profile?.interests || [];
 
   const stats = [

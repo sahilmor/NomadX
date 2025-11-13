@@ -249,6 +249,9 @@ export type Database = {
       Poi: {
         Row: {
           cityStopId: string | null
+          cost: number | null
+          description: string | null
+          duration: string | null
           externalId: string | null
           id: string
           lat: number
@@ -263,6 +266,9 @@ export type Database = {
         }
         Insert: {
           cityStopId?: string | null
+          cost?: number | null
+          description?: string | null
+          duration?: string | null
           externalId?: string | null
           id: string
           lat: number
@@ -277,6 +283,9 @@ export type Database = {
         }
         Update: {
           cityStopId?: string | null
+          cost?: number | null
+          description?: string | null
+          duration?: string | null
           externalId?: string | null
           id?: string
           lat?: number
@@ -512,6 +521,7 @@ export type Database = {
           interests: string[] | null
           name: string | null
           role: Database["public"]["Enums"]["UserRole"]
+          userName: string | null
         }
         Insert: {
           email?: string | null
@@ -523,6 +533,7 @@ export type Database = {
           interests?: string[] | null
           name?: string | null
           role?: Database["public"]["Enums"]["UserRole"]
+          userName?: string | null
         }
         Update: {
           email?: string | null
@@ -534,6 +545,7 @@ export type Database = {
           interests?: string[] | null
           name?: string | null
           role?: Database["public"]["Enums"]["UserRole"]
+          userName?: string | null
         }
         Relationships: []
       }
@@ -560,7 +572,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      signup_with_username: {
+        Args: { email: string; password: string; username: string }
+        Returns: Json
+      }
     }
     Enums: {
       ExpenseCategory:

@@ -1,15 +1,13 @@
 import { Link, useParams } from "react-router-dom";
-// --- UPDATED IMPORTS ---
 import {
   useTrip,
   useTripMembers,
-  TripMemberWithUser, // Import the joined type
+  TripMemberWithUser,
 } from "@/services/trip.service";
 import {
   useTripItinerary,
   useTripPOIs,
-} from "@/services/itinerary.service"; // Corrected import
-// --- (poi.service.ts import removed) ---
+} from "@/services/itinerary.service";
 import {
   ArrowLeft,
   Calendar,
@@ -49,7 +47,6 @@ const TripDetail = () => {
     );
   }
 
-  // Fetch all trip data using your custom hooks
   const { data: trip, isLoading: isLoadingTrip } = useTrip(tripId);
   const { data: itinerary, isLoading: isLoadingItinerary } =
     useTripItinerary(tripId);
@@ -57,7 +54,6 @@ const TripDetail = () => {
   const { data: members, isLoading: isLoadingMembers } =
     useTripMembers(tripId);
 
-  // Combine loading states
   const isLoading =
     isLoadingTrip || isLoadingItinerary || isLoadingPOIs || isLoadingMembers;
 
@@ -77,17 +73,13 @@ const TripDetail = () => {
     );
   }
 
-  // --- UPDATED: Use correct camelCase fields from Supabase ---
   const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
   const duration = differenceInDays(endDate, startDate) + 1;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header is now part of the layout, but if not, uncomment this */}
-      {/* <Header /> */}
       <main className="pt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
         <div className="mb-8">
           <Link
             to="/dashboard"
@@ -120,7 +112,6 @@ const TripDetail = () => {
           </div>
         </div>
 
-        {/* Tabs for Trip Details */}
         <Tabs defaultValue="itinerary" className="w-full">
           <TabsList className="mb-6 grid w-full grid-cols-2 md:grid-cols-4">
             <TabsTrigger value="itinerary">
@@ -141,7 +132,6 @@ const TripDetail = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Itinerary Tab */}
           <TabsContent value="itinerary">
             <Card className="border-0 bg-card">
               <CardHeader>
@@ -162,7 +152,6 @@ const TripDetail = () => {
                       </div>
                       <div className="pb-6 w-full">
                         <p className="text-sm text-muted-foreground">
-                          {/* Format date string properly */}
                           {format(new Date(item.day), "EEEE, MMM d")}
                         </p>
                         <h4 className="font-semibold text-lg text-foreground">
@@ -184,7 +173,6 @@ const TripDetail = () => {
             </Card>
           </TabsContent>
 
-          {/* POIs Tab */}
           <TabsContent value="pois">
             <Card className="border-0 bg-card">
               <CardHeader>
@@ -221,7 +209,6 @@ const TripDetail = () => {
             </Card>
           </TabsContent>
 
-          {/* Budget Tab */}
           <TabsContent value="budget">
             <Card className="border-0 bg-card">
               <CardHeader>
@@ -235,23 +222,20 @@ const TripDetail = () => {
             </Card>
           </TabsContent>
 
-          {/* Members Tab */}
           <TabsContent value="members">
             <Card className="border-0 bg-card">
               <CardHeader>
                 <CardTitle>Trip Members</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {members?.map((member: TripMemberWithUser) => ( // Use the joined type
+                {members?.map((member: TripMemberWithUser) => (
                   <div
-                    key={member.userId} // Use userId from TripMember table
+                    key={member.userId}
                     className="flex flex-col items-center space-y-2 p-4 bg-muted/30 rounded-lg"
                   >
                     <Avatar>
-                      {/* Use joined User object and its 'image' field */}
                       <AvatarImage src={member.User?.image ?? undefined} />
                       <AvatarFallback>
-                        {/* Use joined User object and its 'name' field */}
                         {member.User?.name
                           ? member.User.name[0].toUpperCase()
                           : "U"}

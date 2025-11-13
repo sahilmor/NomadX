@@ -147,7 +147,7 @@ const Dashboard = () => {
   // Format budget with currency
   const formatBudget = (trip: any) => {
     if (!trip.budgetCap) return "Not set";
-    return `${trip.currency || "USD"} ${trip.budgetCap.toLocaleString()}`;
+    return `${trip.currency || "INR"} ${trip.budgetCap.toLocaleString()}`;
   };
 
   return (

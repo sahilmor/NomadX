@@ -13,7 +13,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 const Signup = () => {
   const { user, isLoading } = useAuth();
-  const [name, setName] = useState('');
+  const [username, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,26 +53,34 @@ const Signup = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
+    // Updated to call the new RPC-based function
     const { error } = await signUpWithPassword({ 
       email, 
       password,
-      options: {
-        data: {
-          full_name: name
-        }
-      }
+      username: username // Pass username directly
     });
+
     if (error) {
+      // Check for our new specific error messages
+      let description = error.message;
+      if (error.message.includes('Username already taken')) {
+        description = "This username is already taken. Please try another one.";
+      } else if (error.message.includes('Email already in use')) {
+        description = "This email is already associated with an account.";
+      }
+
       toast({
         title: "Error signing up",
-        description: error.message,
+        description: description,
         variant: "destructive",
       });
     } else {
       toast({
         title: "Success!",
-        description: "Account created. Please check your email to verify.",
+        description: "Account created. You are now logged in.",
       });
+      // The service function now handles login, so we can navigate directly
       navigate('/dashboard');
     }
     setLoading(false);
@@ -88,15 +96,15 @@ const Signup = () => {
         <CardContent className="p-8 pt-0">
           <form onSubmit={handleSignUp} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-base">Name</Label>
+              <Label htmlFor="username" className="text-base">User Name</Label>
               <div className="relative">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
-                  id="name"
+                  id="username"
                   type="text"
-                  placeholder="Your Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  placeholder="User Name"
+                  value={username}
+                  onChange={(e) => setUserName(e.target.value)}
                   className="pl-11 h-12 text-base rounded-lg border-gray-300 focus:border-primary focus:ring-primary"
                   required
                 />

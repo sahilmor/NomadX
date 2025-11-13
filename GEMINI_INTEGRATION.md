@@ -83,7 +83,7 @@ Content-Type: application/json
   "startDate": "2024-03-15",
   "endDate": "2024-04-05",
   "budget": 2500,
-  "currency": "USD",
+  "currency": "INR",
   "description": "Looking for budget-friendly adventure with local experiences",
   "travelers": 2
 }

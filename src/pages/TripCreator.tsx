@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowLeft, ArrowRight, MapPin, Calendar, Users, DollarSign } from "lucide-react";
+import { ArrowLeft, ArrowRight, MapPin, Calendar, Users, DollarSign, Sparkles, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,8 +10,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { createTrip, generateTripPlan } from "@/services/trip.service";
 import { useToast } from "@/components/ui/use-toast";
-import { Sparkles } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 
 const TripCreator = () => {
   const { user } = useAuth();
@@ -21,14 +21,16 @@ const TripCreator = () => {
   const [creating, setCreating] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [useAI, setUseAI] = useState(true);
+  const [inviteUsername, setInviteUsername] = useState(""); // State for invite input
   const [tripData, setTripData] = useState({
     title: "",
     startDate: "",
     endDate: "",
-    currency: "USD",
+    currency: "INR",
     budget: "",
-    travelers: 1,
+    travelers: 1, // Will be auto-calculated: 1 (you) + invitedFriends.length
     description: "",
+    invitedFriends: [] as string[], // New state for invited friends
   });
 
   const steps = [
@@ -39,12 +41,7 @@ const TripCreator = () => {
   ];
 
   const currencies = [
-    { value: "USD", label: "USD - US Dollar" },
-    { value: "EUR", label: "EUR - Euro" },
-    { value: "GBP", label: "GBP - British Pound" },
-    { value: "AUD", label: "AUD - Australian Dollar" },
-    { value: "CAD", label: "CAD - Canadian Dollar" },
-    { value: "JPY", label: "JPY - Japanese Yen" },
+    { value: "INR", label: "INR - Indian Currency (Rupees)" },
   ];
 
   const handleNext = () => {
@@ -63,6 +60,32 @@ const TripCreator = () => {
     setTripData(prev => ({ ...prev, [field]: value }));
   };
 
+  // --- New Handlers for Inviting Friends ---
+  const handleAddFriend = () => {
+    const newFriend = inviteUsername.trim();
+    if (newFriend === "") return;
+
+    // Prevent adding duplicates
+    if (!tripData.invitedFriends.includes(newFriend)) {
+      setTripData(prev => ({
+        ...prev,
+        invitedFriends: [...prev.invitedFriends, newFriend],
+        travelers: prev.travelers + 1, // Auto-increment traveler count
+      }));
+    }
+    setInviteUsername(""); // Clear input
+  };
+
+  const handleRemoveFriend = (username: string) => {
+    setTripData(prev => ({
+      ...prev,
+      invitedFriends: prev.invitedFriends.filter(f => f !== username),
+      travelers: prev.travelers - 1, // Auto-decrement traveler count
+    }));
+  };
+  // --- End New Handlers ---
+
+
   const handleCreateTrip = async () => {
     if (!user) {
       toast({
@@ -73,7 +96,6 @@ const TripCreator = () => {
       return;
     }
 
-    // Validate required fields
     if (!tripData.title || !tripData.startDate || !tripData.endDate) {
       toast({
         title: "Validation Error",
@@ -105,6 +127,12 @@ const TripCreator = () => {
         throw result.error;
       }
 
+      // --- TODO: Add logic to invite friends ---
+      // After trip is created, you would loop through `tripData.invitedFriends`,
+      // find their user IDs from your `User` table,
+      // and insert them into the `TripMember` table with the `tripId`.
+      // This requires new service functions (e.g., `findUserByUsername`, `addTripMember`).
+      
       toast({
         title: "Trip Created!",
         description: useAI 
@@ -112,7 +140,6 @@ const TripCreator = () => {
           : "Your trip has been created successfully.",
       });
 
-      // Generate AI plan if enabled
       if (useAI && result.data) {
         setGeneratingPlan(true);
         try {
@@ -123,7 +150,7 @@ const TripCreator = () => {
             budget: tripData.budget ? parseFloat(tripData.budget) : undefined,
             currency: tripData.currency,
             description: tripData.description,
-            travelers: tripData.travelers,
+            travelers: tripData.travelers, // Pass the final traveler count
           });
 
           if (planResult.error) {
@@ -160,7 +187,6 @@ const TripCreator = () => {
         }
       }
 
-      // Navigate to dashboard after a short delay
       setTimeout(() => {
         navigate("/dashboard");
       }, useAI ? 2000 : 1000);
@@ -246,45 +272,78 @@ const TripCreator = () => {
           </div>
         );
       
+      // --- UPDATED STEP 3 ---
       case 3:
         return (
           <div className="space-y-6">
             <div className="text-center space-y-2">
               <h2 className="text-2xl font-bold text-foreground">Who's joining the adventure?</h2>
-              <p className="text-muted-foreground">Solo or with friends - we've got you covered</p>
+              <p className="text-muted-foreground">Invite friends to collaborate on your plan.</p>
             </div>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="travelers" className="text-sm font-medium">Number of Travelers</Label>
-                <div className="flex items-center space-x-4 mt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleInputChange("travelers", Math.max(1, tripData.travelers - 1))}
-                    disabled={tripData.travelers <= 1}
-                  >
-                    -
-                  </Button>
-                  <span className="text-2xl font-bold text-foreground w-12 text-center">
-                    {tripData.travelers}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleInputChange("travelers", tripData.travelers + 1)}
-                  >
-                    +
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  You can invite friends later from your trip dashboard
-                </p>
+
+            {/* Read-only Traveler Count */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Total Travelers</Label>
+              <div className="flex items-center space-x-4 mt-2">
+                <span className="text-4xl font-bold text-foreground w-12 text-center">
+                  {tripData.travelers}
+                </span>
+                <span className="text-muted-foreground">
+                  (You + {tripData.invitedFriends.length} friend{tripData.invitedFriends.length === 1 ? '' : 's'})
+                </span>
               </div>
             </div>
+
+            {/* Invite Friends Section */}
+            <div className="space-y-4">
+              <Label htmlFor="invite" className="text-sm font-medium">Invite Friends (by Username or Email)</Label>
+              <div className="flex items-center space-x-2">
+                <div className="relative flex-grow">
+                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="invite"
+                    placeholder="friend@example.com"
+                    value={inviteUsername}
+                    onChange={(e) => setInviteUsername(e.target.value)}
+                    className="pl-10"
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddFriend())}
+                  />
+                </div>
+                <Button type="button" variant="outline" onClick={handleAddFriend}>
+                  Add
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                They'll be able to view and edit the trip details with you.
+              </p>
+            </div>
+            
+            {/* Invited Friends List */}
+            {tripData.invitedFriends.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Invited</Label>
+                <div className="flex flex-wrap gap-2">
+                  {tripData.invitedFriends.map((username) => (
+                    <Badge key={username} variant="secondary" className="flex items-center gap-1 pl-3 pr-1 py-1 text-base rounded-md">
+                      <span>{username}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 rounded-full"
+                        onClick={() => handleRemoveFriend(username)}
+                      >
+                        <X className="h-3 w-3" />
+                        <span className="sr-only">Remove {username}</span>
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
+      // --- END UPDATED STEP 3 ---
       
       case 4:
         return (
@@ -322,7 +381,6 @@ const TripCreator = () => {
               </div>
             </div>
             
-            {/* AI Generation Option */}
             <div className="mt-6 p-4 rounded-lg border border-primary/20 bg-primary/5">
               <div className="flex items-start space-x-3">
                 <Checkbox
@@ -355,7 +413,6 @@ const TripCreator = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
           <div className="mb-8">
             <Link to="/dashboard" className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors mb-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -364,7 +421,6 @@ const TripCreator = () => {
             <h1 className="text-3xl font-black text-gradient-hero">Create Your Trip</h1>
           </div>
 
-          {/* Progress Steps */}
           <div className="mb-12">
             <div className="flex items-center justify-between">
               {steps.map((step) => {
@@ -396,7 +452,6 @@ const TripCreator = () => {
               })}
             </div>
             
-            {/* Progress Bar */}
             <div className="mt-6 w-full bg-muted rounded-full h-2">
               <div
                 className="bg-gradient-to-r from-primary to-primary-light h-2 rounded-full transition-all duration-300"
@@ -405,7 +460,6 @@ const TripCreator = () => {
             </div>
           </div>
 
-          {/* Step Content */}
           <Card className="border-0 bg-card shadow-lg">
             <CardHeader className="text-center pb-8">
               <div className="w-16 h-16 bg-gradient-to-r from-primary to-primary-light rounded-2xl mx-auto mb-4 flex items-center justify-center">
@@ -417,7 +471,6 @@ const TripCreator = () => {
             </CardContent>
           </Card>
 
-          {/* Navigation Buttons */}
           <div className="flex justify-between mt-8">
             <Button
               variant="outline"

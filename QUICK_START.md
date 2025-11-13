@@ -42,7 +42,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NULL),
-    'USD',
+    'INR',
     'USER'
   )
   ON CONFLICT (id) DO NOTHING;

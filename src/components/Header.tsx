@@ -86,7 +86,7 @@ const Header = () => {
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={user.user_metadata.avatar_url} alt={user.user_metadata.full_name} />
-                <AvatarFallback>{user.user_metadata.full_name?.[0]}</AvatarFallback>
+                <AvatarFallback>{user.user_metadata.full_name?.[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>

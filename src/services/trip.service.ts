@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
-import { useQuery } from '@tanstack/react-query'; // Import useQuery
+import { useQuery } from '@tanstack/react-query'; 
 
 type Trip = Tables<'Trip'>;
 type TripInsert = TablesInsert<'Trip'>;
@@ -8,12 +8,10 @@ type TripUpdate = TablesUpdate<'Trip'>;
 type UserProfile = Tables<'User'>;
 type TripMember = Tables<'TripMember'>;
 
-// Define a new type for the joined data
 export type TripMemberWithUser = TripMember & {
   User: Pick<UserProfile, 'id' | 'name' | 'image'> | null;
 };
 
-// Helper function to calculate days between dates
 const calculateDays = (startDate: string, endDate: string): number => {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -21,7 +19,6 @@ const calculateDays = (startDate: string, endDate: string): number => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
-// Helper function to format date
 const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('en-US', {
     month: 'short',
@@ -30,7 +27,6 @@ const formatDate = (dateString: string): string => {
   });
 };
 
-// Generate comprehensive travel plan with Gemini
 export const generateTripPlan = async (
   tripId: string,
   tripData: {
@@ -51,7 +47,6 @@ export const generateTripPlan = async (
       throw new Error('No active session');
     }
 
-    // Get Supabase URL from the client
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mnsqjfwgpmyiepruifwr.supabase.co';
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `${supabaseUrl}/functions/v1`;
     
@@ -61,7 +56,6 @@ export const generateTripPlan = async (
       tripData
     });
     
-    // Call Gemini API endpoint to generate comprehensive plan
     const response = await fetch(`${apiBaseUrl}/generate-trip-plan`, {
       method: 'POST',
       headers: {
@@ -111,7 +105,6 @@ export const generateTripPlan = async (
   }
 };
 
-// Create trip manually
 export const createTrip = async (tripData: TripInsert) => {
   try {
     const { data, error } = await supabase
@@ -132,7 +125,6 @@ export const createTrip = async (tripData: TripInsert) => {
   }
 };
 
-// Get user's trips with members count
 export const getUserTrips = async (userId: string) => {
   try {
     const { data: trips, error: tripsError } = await supabase
@@ -146,7 +138,6 @@ export const getUserTrips = async (userId: string) => {
       return { data: null, error: tripsError };
     }
 
-    // Get members count for each trip
     const tripsWithMembers = await Promise.all(
       (trips || []).map(async (trip) => {
         const { count } = await supabase
@@ -170,7 +161,6 @@ export const getUserTrips = async (userId: string) => {
   }
 };
 
-// Get upcoming trips (trips with startDate in the future)
 export const getUpcomingTrips = async (userId: string) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -188,7 +178,6 @@ export const getUpcomingTrips = async (userId: string) => {
   }
 };
 
-// Get trip by ID
 export const getTripById = async (tripId: string) => {
   try {
     const { data, error } = await supabase
@@ -209,7 +198,6 @@ export const getTripById = async (tripId: string) => {
   }
 };
 
-// --- NEW: React Query hook for getTripById ---
 export const useTrip = (tripId: string) => {
   return useQuery({
     queryKey: ['trip', tripId],
@@ -218,11 +206,10 @@ export const useTrip = (tripId: string) => {
       if (error) throw new Error(error.message);
       return data;
     },
-    enabled: !!tripId, // Only run if tripId is available
+    enabled: !!tripId, 
   });
 };
 
-// Update trip
 export const updateTrip = async (tripId: string, updates: TripUpdate) => {
   try {
     const { data, error } = await supabase
@@ -244,7 +231,6 @@ export const updateTrip = async (tripId: string, updates: TripUpdate) => {
   }
 };
 
-// Delete trip
 export const deleteTrip = async (tripId: string) => {
   try {
     const { error } = await supabase
@@ -264,10 +250,8 @@ export const deleteTrip = async (tripId: string) => {
   }
 };
 
-// Get trip members
 export const getTripMembers = async (tripId: string) => {
   try {
-    // --- UPDATED: Join with User table to get name and image ---
     const { data, error } = await supabase
       .from('TripMember')
       .select(`
@@ -292,7 +276,6 @@ export const getTripMembers = async (tripId: string) => {
   }
 };
 
-// --- NEW: React Query hook for getTripMembers ---
 export const useTripMembers = (tripId: string) => {
   return useQuery({
     queryKey: ['tripMembers', tripId],

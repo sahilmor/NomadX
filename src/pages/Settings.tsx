@@ -13,7 +13,7 @@ import { getOrCreateUserProfile, updateUserProfile, updateAuthUserMetadata } fro
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const currencies = [
-  { value: "USD", label: "USD - US Dollar" },
+  { value: "INR", label: "INR - US Dollar" },
   { value: "EUR", label: "EUR - Euro" },
   { value: "GBP", label: "GBP - British Pound" },
   { value: "AUD", label: "AUD - Australian Dollar" },
@@ -75,14 +75,14 @@ const Settings = () => {
           setValue("name", result.data.name || user.user_metadata?.full_name || "");
           setValue("email", result.data.email || user.email || "");
           setValue("homeCity", result.data.homeCity || "");
-          setValue("homeCurrency", result.data.homeCurrency || "USD");
+          setValue("homeCurrency", result.data.homeCurrency || "INR");
           setValue("interests", result.data.interests || []);
         } else {
           // Initialize with auth user data if no profile exists
           setValue("name", user.user_metadata?.full_name || "");
           setValue("email", user.email || "");
           setValue("homeCity", "");
-          setValue("homeCurrency", "USD");
+          setValue("homeCurrency", "INR");
           setValue("interests", []);
         }
       } catch (error) {

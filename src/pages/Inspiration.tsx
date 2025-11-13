@@ -20,7 +20,7 @@ const inspirationPlans = [
     locations: "Bangkok, Chiang Mai, Krabi, Koh Phi Phi",
     duration: 14, // days
     budget: 1500,
-    currency: "USD",
+    currency: "INR",
     tags: ["Famous", "Beach", "Budget", "Nightlife"],
     imageUrl: "/placeholder-thailand.jpg", // We don't have this, but it's good practice
     description: "The classic Southeast Asia route. Temples, street food, and perfect beaches."
@@ -42,7 +42,7 @@ const inspirationPlans = [
     locations: "Torres del Paine National Park, Chile",
     duration: 7,
     budget: 2000,
-    currency: "USD",
+    currency: "INR",
     tags: ["Off-beat", "Adventure", "Hiking", "Nature"],
     imageUrl: "/placeholder-patagonia.jpg",
     description: "A challenging but rewarding trek with breathtaking mountain views."

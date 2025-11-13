@@ -152,7 +152,7 @@ TRIP DETAILS:
 - Start Date: ${planRequest.startDate}
 - End Date: ${planRequest.endDate}
 - Duration: ${days} days
-- Budget: ${planRequest.budget ? `${planRequest.budget} ${planRequest.currency || "USD"}` : "Flexible budget"}
+- Budget: ${planRequest.budget ? `${planRequest.budget} ${planRequest.currency || "INR"}` : "Flexible budget"}
 - Number of Travelers: ${planRequest.travelers || 1}
 - Description: ${planRequest.description || "General travel experience"}
 
@@ -181,7 +181,7 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
             "mode": "flight/train/bus/ferry",
             "duration": "2 hours",
             "cost": 50,
-            "currency": "USD",
+            "currency": "INR",
             "tips": "Best time to book, booking sites"
           }
         ]
@@ -201,20 +201,20 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
         "type": "hostel",
         "name": "Example Hostel",
         "cost": 20,
-        "currency": "USD",
+        "currency": "INR",
         "location": "Near city center"
       },
       "midrange": {
         "type": "hotel",
         "name": "Example Hotel",
         "cost": 60,
-        "currency": "USD"
+        "currency": "INR"
       },
       "unique": {
         "type": "homestay",
         "name": "Local Experience",
         "cost": 35,
-        "currency": "USD"
+        "currency": "INR"
       }
     }
   ],
@@ -247,7 +247,7 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
       "category": "museum/beach/hiking/cultural",
       "description": "Why visit, what to expect",
       "cost": 10,
-      "currency": "USD",
+      "currency": "INR",
       "duration": "2-3 hours",
       "bestTime": "Morning/Afternoon",
       "tips": "Booking info, insider tips"
@@ -278,7 +278,7 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
     "activities": 150,
     "miscellaneous": 50,
     "total": 1100,
-    "currency": "USD"
+    "currency": "INR"
   },
   "tips": [
     "General travel tip 1",

@@ -6,26 +6,35 @@ type UserProfileUpdate = TablesUpdate<'User'>;
 type UserProfileInsert = TablesInsert<'User'>;
 
 // Ensure user exists in database (create if doesn't exist)
-export const ensureUserExists = async (userId: string, email: string, name?: string) => {
+export const ensureUserExists = async (details: {
+  userId: string;
+  email: string;
+  name?: string;
+  userName?: string;
+}) => {
   try {
     // First, try to get existing user
     const { data: existingUser, error: fetchError } = await supabase
       .from('User')
       .select('*')
-      .eq('id', userId)
+      .eq('id', details.userId)
       .maybeSingle();
 
-    // If user exists, return it
+    // If user exists, return it  
     if (existingUser) {
       return { data: existingUser as UserProfile, error: null };
     }
 
+    const displayName = details.name || details.userName;
+    const displayUserName = details.userName || `User_${details.userId.substring(0, 8)}`;
+
     // If user doesn't exist, create it
     const newUser: UserProfileInsert = {
-      id: userId,
-      email: email,
-      name: name || null,
-      homeCurrency: 'USD',
+      id: details.userId,
+      email: details.email,
+      name: displayName || null,
+      userName: displayUserName,
+      homeCurrency: 'INR',
       role: 'USER',
       emailVerified: null,
       homeCity: null,
@@ -51,7 +60,6 @@ export const ensureUserExists = async (userId: string, email: string, name?: str
   }
 };
 
-// Get user profile from database (with fallback)
 export const getUserProfile = async (userId: string) => {
   try {
     const { data, error } = await supabase
@@ -65,7 +73,6 @@ export const getUserProfile = async (userId: string) => {
       return { data: null, error };
     }
 
-    // If no user found, return null (will be handled by ensureUserExists)
     return { data: data as UserProfile | null, error: null };
   } catch (error: any) {
     console.error('Error in getUserProfile:', error);
@@ -73,20 +80,16 @@ export const getUserProfile = async (userId: string) => {
   }
 };
 
-// Get or create user profile
 export const getOrCreateUserProfile = async (userId: string, email: string, name?: string) => {
-  // Try to get existing profile
   const profileResult = await getUserProfile(userId);
   
   if (profileResult.data) {
     return profileResult;
   }
 
-  // Create if doesn't exist
-  return await ensureUserExists(userId, email, name);
+  return await ensureUserExists({ userId, email, name });
 };
 
-// Update user profile
 export const updateUserProfile = async (userId: string, updates: UserProfileUpdate) => {
   try {
     // Ensure user exists first
@@ -95,7 +98,8 @@ export const updateUserProfile = async (userId: string, updates: UserProfileUpda
       return { data: null, error: { message: 'User not authenticated' } };
     }
 
-    await ensureUserExists(userId, authUser.email || '', updates.name || undefined);
+    // This call ensures the user exists before updating
+    await getOrCreateUserProfile(userId, authUser.email || '', updates.name || undefined);
 
     const { data, error } = await supabase
       .from('User')
@@ -116,7 +120,6 @@ export const updateUserProfile = async (userId: string, updates: UserProfileUpda
   }
 };
 
-// Update auth user metadata
 export const updateAuthUserMetadata = async (metadata: { full_name?: string; avatar_url?: string }) => {
   try {
     const { data, error } = await supabase.auth.updateUser({
@@ -135,7 +138,6 @@ export const updateAuthUserMetadata = async (metadata: { full_name?: string; ava
   }
 };
 
-// Get user's trips count
 export const getUserTripsCount = async (userId: string) => {
   try {
     const { count, error } = await supabase
