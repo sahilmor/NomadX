@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesInsert } from '@/integrations/supabase/types';
+import { useQuery } from '@tanstack/react-query'; // Import useQuery
 
 type CityStop = Tables<'CityStop'>;
 type CityStopInsert = TablesInsert<'CityStop'>;
@@ -157,6 +158,20 @@ export const getTripItinerary = async (tripId: string) => {
   }
 };
 
+// --- NEW: React Query hook for getTripItinerary ---
+export const useTripItinerary = (tripId: string) => {
+  return useQuery({
+    queryKey: ['tripItinerary', tripId],
+    queryFn: async () => {
+      const { data, error } = await getTripItinerary(tripId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!tripId,
+  });
+};
+
+
 // Get city stops for a trip
 export const getTripCityStops = async (tripId: string) => {
   try {
@@ -198,3 +213,15 @@ export const getTripPOIs = async (tripId: string) => {
   }
 };
 
+// --- NEW: React Query hook for getTripPOIs ---
+export const useTripPOIs = (tripId: string) => {
+  return useQuery({
+    queryKey: ['tripPOIs', tripId],
+    queryFn: async () => {
+      const { data, error } = await getTripPOIs(tripId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!tripId,
+  });
+};

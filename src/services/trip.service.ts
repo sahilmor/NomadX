@@ -1,10 +1,17 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { useQuery } from '@tanstack/react-query'; // Import useQuery
 
 type Trip = Tables<'Trip'>;
 type TripInsert = TablesInsert<'Trip'>;
 type TripUpdate = TablesUpdate<'Trip'>;
+type UserProfile = Tables<'User'>;
 type TripMember = Tables<'TripMember'>;
+
+// Define a new type for the joined data
+export type TripMemberWithUser = TripMember & {
+  User: Pick<UserProfile, 'id' | 'name' | 'image'> | null;
+};
 
 // Helper function to calculate days between dates
 const calculateDays = (startDate: string, endDate: string): number => {
@@ -202,6 +209,19 @@ export const getTripById = async (tripId: string) => {
   }
 };
 
+// --- NEW: React Query hook for getTripById ---
+export const useTrip = (tripId: string) => {
+  return useQuery({
+    queryKey: ['trip', tripId],
+    queryFn: async () => {
+      const { data, error } = await getTripById(tripId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!tripId, // Only run if tripId is available
+  });
+};
+
 // Update trip
 export const updateTrip = async (tripId: string, updates: TripUpdate) => {
   try {
@@ -247,9 +267,17 @@ export const deleteTrip = async (tripId: string) => {
 // Get trip members
 export const getTripMembers = async (tripId: string) => {
   try {
+    // --- UPDATED: Join with User table to get name and image ---
     const { data, error } = await supabase
       .from('TripMember')
-      .select('*')
+      .select(`
+        *,
+        User (
+          id,
+          name,
+          image
+        )
+      `)
       .eq('tripId', tripId);
 
     if (error) {
@@ -257,9 +285,22 @@ export const getTripMembers = async (tripId: string) => {
       return { data: null, error };
     }
 
-    return { data: data as TripMember[], error: null };
+    return { data: data as any as TripMemberWithUser[], error: null };
   } catch (error: any) {
     console.error('Error in getTripMembers:', error);
     return { data: null, error };
   }
+};
+
+// --- NEW: React Query hook for getTripMembers ---
+export const useTripMembers = (tripId: string) => {
+  return useQuery({
+    queryKey: ['tripMembers', tripId],
+    queryFn: async () => {
+      const { data, error } = await getTripMembers(tripId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!tripId,
+  });
 };

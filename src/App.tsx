@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Header from "./components/Header"; // Import the Header
+import TripDetail from "./pages/TripDetail";
 
 const queryClient = new QueryClient();
 
@@ -31,7 +32,6 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      <Sonner />
       <BrowserRouter>
         <AuthProvider>
           <Routes>
@@ -46,6 +46,7 @@ const App = () => (
                 <Route path="/trip/new" element={<TripCreator />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/trips/:tripId" element={<TripDetail />} />
               </Route>
             </Route>
 

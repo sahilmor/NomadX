@@ -1,15 +1,17 @@
+// edge-function/generate-trip-plan.ts
+// Supabase Edge Function (Deno) - Generate & save travel plan using Gemini (API key from env)
+
 // @ts-ignore - Deno runtime imports
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // @ts-ignore - Deno runtime imports
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ... (declarations remain the same) ...
-
 const ALLOWED_ORIGINS = [
-  'http://localhost:8080', // Your local dev environment
-  'http://localhost:3000', // Common for Next.js
-  // 'https://your-production-app.com', // ADD YOUR PRODUCTION URL HERE
+  "http://localhost:8080", // local dev (supabase studio)
+  "http://localhost:3000", // nextjs dev
+  // "https://your-production-app.com", // add your production origin here
 ];
+
 // Deno global is available in Supabase Edge Functions runtime
 declare const Deno: {
   env: {
@@ -22,9 +24,14 @@ declare const crypto: {
   randomUUID(): string;
 };
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-// Use Gemini 1.5 Pro (stable model)
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent";
+// Read secrets from environment
+const GEMINI_API_KEY = Deno.env.get("VITE_GEMINI_API_KEY");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+// Gemini endpoint (keep key out of URL)
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-latest:generateContent";
 
 interface GeneratePlanRequest {
   tripId: string;
@@ -37,40 +44,49 @@ interface GeneratePlanRequest {
   travelers?: number;
 }
 
-serve(async (req) => {
-  const origin = req.headers.get("Origin") || "*";
+serve(async (req: {
+  headers: { get: (name: string) => string | null };
+  method: string;
+  json: () => Promise<GeneratePlanRequest>;
+}) => {
+  // Basic CORS handling
+  const origin = req.headers.get("Origin") || "";
   const isAllowedOrigin = ALLOWED_ORIGINS.includes(origin);
-
-  // Define headers *before* any checks
   const corsHeaders: Record<string, string> = {
-    "Access-Control-Allow-Origin": isAllowedOrigin ? origin : ALLOWED_ORIGINS[0],
-    "Vary": "Origin",
+    "Access-Control-Allow-Origin": isAllowedOrigin
+      ? origin
+      : ALLOWED_ORIGINS[0],
+    Vary: "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": req.headers.get("Access-Control-Request-Headers") || "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Headers":
+      req.headers.get("Access-Control-Request-Headers") ||
+      "authorization, content-type, apikey, x-client-info",
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400",
     "Access-Control-Expose-Headers": "Content-Length, Content-Type",
   };
 
   if (req.method === "OPTIONS") {
-    console.log("Handling OPTIONS preflight request");
+    // Preflight
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  // --- Now, handle other requests ---
-  
-  // Check origin *after* OPTIONS has been handled
   if (!isAllowedOrigin) {
     return new Response(
-      JSON.stringify({ error: "Origin not allowed" }), 
+      JSON.stringify({ error: "Origin not allowed" }),
       { status: 403, headers: corsHeaders }
     );
   }
 
   try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Supabase url/service role key not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
-
-    // Get authorization header
+    // Authorization header (client session token)
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -79,14 +95,15 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // init supabase client (server-side)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Verify user token
+    // verify user token provided by client
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       return new Response(
@@ -95,30 +112,34 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
-    const planRequest: GeneratePlanRequest = await req.json();
+    // parse request body
+    const planRequest = await req.json();
 
-    // Validate required fields
-    if (!planRequest.tripId || !planRequest.title || !planRequest.startDate || !planRequest.endDate) {
+    // required fields
+    if (
+      !planRequest.tripId ||
+      !planRequest.title ||
+      !planRequest.startDate ||
+      !planRequest.endDate
+    ) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: tripId, title, startDate, endDate" }),
+        JSON.stringify({
+          error:
+            "Missing required fields: tripId, title, startDate, endDate",
+        }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    if (!GEMINI_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "Gemini API key not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Calculate number of days
+    // compute days (inclusive)
     const start = new Date(planRequest.startDate);
     const end = new Date(planRequest.endDate);
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const days =
+      Math.ceil(
+        (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+      ) + 1;
 
-    // --- UPDATED PROMPT ---
+    // Build prompt (same structure you provided)
     const prompt = `You are an expert travel planner specializing in budget-friendly, off-beat, and authentic travel experiences. Create a comprehensive, detailed travel plan for the following trip:
 
 TRIP DETAILS:
@@ -282,135 +303,134 @@ IMPORTANT:
 - Include practical tips and insider knowledge
 - Consider the number of travelers in recommendations`;
 
-    // Call Gemini API
-    const geminiResponse = await fetch(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    // Build Gemini headers. Prefer Bearer if configured, otherwise API key header.
+    const geminiHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-goog-api-key": GEMINI_API_KEY!,
+    };
+
+    // Call Gemini
+    const geminiResponse = await fetch(GEMINI_API_URL, {
+      method: "POST",
+      headers: geminiHeaders,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.8,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json",
         },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.8,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json", // <-- RELIABLE JSON
-          },
-        }),
-      }
-    );
+      }),
+    });
 
     if (!geminiResponse.ok) {
-      const error = await geminiResponse.text();
-      console.error("Gemini API error:", error);
+      const errText = await geminiResponse.text();
+      console.error("Gemini API error:", errText);
       return new Response(
-        JSON.stringify({ error: "Failed to generate travel plan", details: error }),
+        JSON.stringify({
+          error: "Failed to generate travel plan",
+          details: errText,
+        }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
     const geminiData = await geminiResponse.json();
-    const aiContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const aiContent =
+      geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Parse JSON from AI response
-    let travelPlan;
+    // Parse JSON from AI
+    let travelPlan: any;
     try {
-      // Simplified parsing - no regex needed
       travelPlan = JSON.parse(aiContent);
     } catch (e) {
       console.error("Error parsing AI response:", e);
       return new Response(
-        JSON.stringify({ 
-          error: "Failed to parse AI response", 
+        JSON.stringify({
+          error: "Failed to parse AI response",
           details: "AI response format is invalid",
-          rawResponse: aiContent.substring(0, 500)
+          rawResponse: aiContent.substring(0, 500),
         }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // --- SAVE DATA TO DATABASE (ROBUST VERSION) ---
-    const savedData: any = {};
-    
-    // 1. Prepare and Save City Stops
+    // --- SAVE DATA TO DATABASE ---
+    const savedData: Record<string, any> = {};
+
+    // Helper maps to convert AI tempIds to DB UUIDs
     const cityTempIdToDbIdMap = new Map<string, string>();
-    const cityStopPayload: any[] = [];
-    if (travelPlan.cityStops && travelPlan.cityStops.length > 0) {
-      travelPlan.cityStops.forEach((stop: any, index: number) => {
-        const newId = crypto.randomUUID();
-        cityTempIdToDbIdMap.set(stop.tempId, newId); // Map AI tempId to our new UUID
-        
-        cityStopPayload.push({
-          id: newId,
-          tripId: planRequest.tripId,
-          name: stop.name || `City ${index + 1}`,
-          lat: stop.lat || 0,
-          lng: stop.lng || 0,
-          arrival: stop.arrival || planRequest.startDate,
-          departure: stop.departure || planRequest.endDate,
-          order: stop.order !== undefined ? stop.order : index,
-          notes: stop.notes || null,
-        });
-      });
-      
+    const poiTempIdToDbIdMap = new Map<string, string>();
+
+    // 1) CityStops
+    if (Array.isArray(travelPlan.cityStops) && travelPlan.cityStops.length) {
+      const cityStopPayload: any[] = travelPlan.cityStops.map(
+        (stop: any, index: number) => {
+          const newId = crypto.randomUUID();
+          cityTempIdToDbIdMap.set(stop.tempId, newId);
+          return {
+            id: newId,
+            tripId: planRequest.tripId,
+            name: stop.name || `City ${index + 1}`,
+            lat: stop.lat ?? 0,
+            lng: stop.lng ?? 0,
+            arrival: stop.arrival || planRequest.startDate,
+            departure: stop.departure || planRequest.endDate,
+            order: stop.order ?? index,
+            notes: stop.notes || null,
+          };
+        }
+      );
+
       const { data: cityStops, error: cityStopsError } = await supabase
         .from("CityStop")
         .insert(cityStopPayload)
         .select();
-        
+
       savedData.cityStops = cityStops || [];
       if (cityStopsError) console.error("Error saving city stops:", cityStopsError);
     }
 
-    // 2. Prepare and Save POIs (using the city map)
-    const poiTempIdToDbIdMap = new Map<string, string>();
-    const poiPayload: any[] = [];
-    if (travelPlan.pois && travelPlan.pois.length > 0) {
-      travelPlan.pois.forEach((poi: any) => {
+    // 2) POIs
+    if (Array.isArray(travelPlan.pois) && travelPlan.pois.length) {
+      const poiPayload: any[] = travelPlan.pois.map((poi: any) => {
         const newId = crypto.randomUUID();
-        poiTempIdToDbIdMap.set(poi.tempId, newId); // Map AI tempId to our new UUID
-        
-        poiPayload.push({
+        poiTempIdToDbIdMap.set(poi.tempId, newId);
+        return {
           id: newId,
           tripId: planRequest.tripId,
           name: poi.name,
-          lat: poi.lat || 0,
-          lng: poi.lng || 0,
-          cityStopId: cityTempIdToDbIdMap.get(poi.cityTempId) || null, // <-- RELIABLE LINK
+          lat: poi.lat ?? 0,
+          lng: poi.lng ?? 0,
+          cityStopId: cityTempIdToDbIdMap.get(poi.cityTempId) || null,
           tags: poi.type ? [poi.type, poi.category].filter(Boolean) : null,
           photoUrl: poi.photoUrl || null,
           websiteUrl: poi.websiteUrl || null,
-          rating: poi.rating || null,
-          priceLevel: poi.priceLevel || null,
+          rating: poi.rating ?? null,
+          priceLevel: poi.priceLevel ?? null,
           externalId: null,
-          // Add other POI fields from your 'poi' object if needed
           description: poi.description || null,
-          cost: poi.cost || null,
+          cost: poi.cost ?? null,
           duration: poi.duration || null,
-        });
+        };
       });
 
       const { data: pois, error: poisError } = await supabase
         .from("Poi")
         .insert(poiPayload)
         .select();
-        
+
       savedData.pois = pois || [];
       if (poisError) console.error("Error saving POIs:", poisError);
     }
 
-    // 3. Prepare and Save Itinerary Items (using the POI map)
-    if (travelPlan.itinerary && travelPlan.itinerary.length > 0) {
+    // 3) Itinerary items
+    if (Array.isArray(travelPlan.itinerary) && travelPlan.itinerary.length) {
       const itineraryItemsPayload: any[] = [];
       travelPlan.itinerary.forEach((day: any) => {
-        if (day.items && Array.isArray(day.items)) {
+        if (Array.isArray(day.items)) {
           day.items.forEach((item: any) => {
             itineraryItemsPayload.push({
               id: crypto.randomUUID(),
@@ -420,24 +440,28 @@ IMPORTANT:
               kind: item.kind || "ACTIVITY",
               startTime: item.startTime || null,
               endTime: item.endTime || null,
-              cost: item.cost || null,
+              cost: item.cost ?? null,
               notes: item.notes || null,
-              poiId: poiTempIdToDbIdMap.get(item.poiTempId) || null, // <-- RELIABLE LINK
+              poiId: poiTempIdToDbIdMap.get(item.poiTempId) || null,
             });
           });
         }
       });
 
-      const { data: items, error: itemsError } = await supabase
-        .from("ItineraryItem")
-        .insert(itineraryItemsPayload)
-        .select();
-      
-      savedData.itineraryItems = items || [];
-      if (itemsError) console.error("Error saving itinerary items:", itemsError);
+      if (itineraryItemsPayload.length) {
+        const { data: items, error: itemsError } = await supabase
+          .from("ItineraryItem")
+          .insert(itineraryItemsPayload)
+          .select();
+
+        savedData.itineraryItems = items || [];
+        if (itemsError) console.error("Error saving itinerary items:", itemsError);
+      } else {
+        savedData.itineraryItems = [];
+      }
     }
 
-    // Return comprehensive plan
+    // Return the generated plan and saved DB records
     return new Response(
       JSON.stringify({
         success: true,
@@ -453,7 +477,7 @@ IMPORTANT:
   } catch (error: any) {
     console.error("Error in generate-trip-plan:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error.message }),
+      JSON.stringify({ error: "Internal server error", details: error?.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
