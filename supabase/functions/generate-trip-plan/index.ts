@@ -1,0 +1,460 @@
+// @ts-ignore - Deno runtime imports
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore - Deno runtime imports
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// ... (declarations remain the same) ...
+
+const ALLOWED_ORIGINS = [
+  'http://localhost:8080', // Your local dev environment
+  'http://localhost:3000', // Common for Next.js
+  // 'https://your-production-app.com', // ADD YOUR PRODUCTION URL HERE
+];
+// Deno global is available in Supabase Edge Functions runtime
+declare const Deno: {
+  env: {
+    get(key: string): string | undefined;
+  };
+};
+
+// Crypto is available in Deno runtime
+declare const crypto: {
+  randomUUID(): string;
+};
+
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+// Use Gemini 1.5 Pro (stable model)
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent";
+
+interface GeneratePlanRequest {
+  tripId: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  budget?: number;
+  currency?: string;
+  description?: string;
+  travelers?: number;
+}
+
+serve(async (req) => {
+  const origin = req.headers.get("Origin") || "*";
+  const isAllowedOrigin = ALLOWED_ORIGINS.includes(origin);
+
+  // Define headers *before* any checks
+  const corsHeaders: Record<string, string> = {
+    "Access-Control-Allow-Origin": isAllowedOrigin ? origin : ALLOWED_ORIGINS[0],
+    "Vary": "Origin",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": req.headers.get("Access-Control-Request-Headers") || "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
+    "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+  };
+
+  if (req.method === "OPTIONS") {
+    console.log("Handling OPTIONS preflight request");
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  // --- Now, handle other requests ---
+  
+  // Check origin *after* OPTIONS has been handled
+  if (!isAllowedOrigin) {
+    return new Response(
+      JSON.stringify({ error: "Origin not allowed" }), 
+      { status: 403, headers: corsHeaders }
+    );
+  }
+
+  try {
+
+
+    // Get authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify user token
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid or expired token" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Parse request body
+    const planRequest: GeneratePlanRequest = await req.json();
+
+    // Validate required fields
+    if (!planRequest.tripId || !planRequest.title || !planRequest.startDate || !planRequest.endDate) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields: tripId, title, startDate, endDate" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!GEMINI_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Gemini API key not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Calculate number of days
+    const start = new Date(planRequest.startDate);
+    const end = new Date(planRequest.endDate);
+    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // --- UPDATED PROMPT ---
+    const prompt = `You are an expert travel planner specializing in budget-friendly, off-beat, and authentic travel experiences. Create a comprehensive, detailed travel plan for the following trip:
+
+TRIP DETAILS:
+- Title: ${planRequest.title}
+- Start Date: ${planRequest.startDate}
+- End Date: ${planRequest.endDate}
+- Duration: ${days} days
+- Budget: ${planRequest.budget ? `${planRequest.budget} ${planRequest.currency || "USD"}` : "Flexible budget"}
+- Number of Travelers: ${planRequest.travelers || 1}
+- Description: ${planRequest.description || "General travel experience"}
+
+REQUIREMENTS - Create a COMPLETE custom travel package including:
+(All your sections 1-8 go here)
+
+OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
+
+{
+  "cityStops": [
+    {
+      "tempId": "c1",
+      "name": "City Name",
+      "lat": 40.7128,
+      "lng": -74.0060,
+      "arrival": "YYYY-MM-DD",
+      "departure": "YYYY-MM-DD",
+      "order": 1,
+      "notes": "Why visit this city, what makes it special"
+    }
+  ],
+  "transportation": {
+    "routes": [
+      {
+        "from": "City A",
+        "to": "City B",
+        "options": [
+          {
+            "mode": "flight/train/bus/ferry",
+            "duration": "2 hours",
+            "cost": 50,
+            "currency": "USD",
+            "tips": "Best time to book, booking sites"
+          }
+        ]
+      }
+    ],
+    "localTransport": {
+      "city": "City Name",
+      "modes": ["metro", "bus", "bike", "walking"],
+      "recommendations": "Best way to get around",
+      "cost": "Daily pass cost"
+    }
+  },
+  "accommodation": [
+    {
+      "city": "City Name",
+      "budget": {
+        "type": "hostel",
+        "name": "Example Hostel",
+        "cost": 20,
+        "currency": "USD",
+        "location": "Near city center"
+      },
+      "midrange": {
+        "type": "hotel",
+        "name": "Example Hotel",
+        "cost": 60,
+        "currency": "USD"
+      },
+      "unique": {
+        "type": "homestay",
+        "name": "Local Experience",
+        "cost": 35,
+        "currency": "USD"
+      }
+    }
+  ],
+  "food": [
+    {
+      "city": "City Name",
+      "mustTry": ["Dish 1", "Dish 2"],
+      "budgetRestaurants": [
+        {
+          "name": "Restaurant Name",
+          "type": "Street food/Local eatery",
+          "specialty": "What to order",
+          "cost": 5,
+          "location": "Area/Street name"
+        }
+      ],
+      "markets": ["Market name and what to find"],
+      "tips": "Food tips for this city"
+    }
+  ],
+  "pois": [
+    {
+      "tempId": "p1",
+      "cityTempId": "c1",
+      "name": "Attraction/Location Name",
+      "lat": 40.7128,
+      "lng": -74.0060,
+      "city": "City Name",
+      "type": "famous/offbeat",
+      "category": "museum/beach/hiking/cultural",
+      "description": "Why visit, what to expect",
+      "cost": 10,
+      "currency": "USD",
+      "duration": "2-3 hours",
+      "bestTime": "Morning/Afternoon",
+      "tips": "Booking info, insider tips"
+    }
+  ],
+  "itinerary": [
+    {
+      "day": "Day 1",
+      "date": "YYYY-MM-DD",
+      "city": "City Name",
+      "items": [
+        {
+          "title": "Activity Name",
+          "poiTempId": "p1",
+          "kind": "SIGHT/FOOD/ACTIVITY/MOVE/STAY/REST",
+          "startTime": "09:00",
+          "endTime": "11:00",
+          "cost": 10,
+          "notes": "Tips, what to bring, what to expect"
+        }
+      ]
+    }
+  ],
+  "budgetBreakdown": {
+    "accommodation": 300,
+    "food": 200,
+    "transportation": 400,
+    "activities": 150,
+    "miscellaneous": 50,
+    "total": 1100,
+    "currency": "USD"
+  },
+  "tips": [
+    "General travel tip 1",
+    "Money-saving tip 2",
+    "Safety tip 3"
+  ],
+  "guide": {
+    "bestTime": "When to visit",
+    "customs": "Local customs to know",
+    "language": "Basic phrases",
+    "safety": "Safety considerations",
+    "packing": "What to pack",
+    "visa": "Visa requirements",
+    "currency": "Currency and payment tips"
+  }
+}
+
+IMPORTANT:
+- Include a mix of famous AND off-beat locations (at least 30% off-beat/hidden gems)
+- Provide realistic coordinates (lat/lng) for all locations
+- Ensure all dates are within the trip duration
+- Make activities budget-friendly but also include premium options
+- Be specific with locations, not generic
+- Include practical tips and insider knowledge
+- Consider the number of travelers in recommendations`;
+
+    // Call Gemini API
+    const geminiResponse = await fetch(
+      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.8,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json", // <-- RELIABLE JSON
+          },
+        }),
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const error = await geminiResponse.text();
+      console.error("Gemini API error:", error);
+      return new Response(
+        JSON.stringify({ error: "Failed to generate travel plan", details: error }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const geminiData = await geminiResponse.json();
+    const aiContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // Parse JSON from AI response
+    let travelPlan;
+    try {
+      // Simplified parsing - no regex needed
+      travelPlan = JSON.parse(aiContent);
+    } catch (e) {
+      console.error("Error parsing AI response:", e);
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to parse AI response", 
+          details: "AI response format is invalid",
+          rawResponse: aiContent.substring(0, 500)
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // --- SAVE DATA TO DATABASE (ROBUST VERSION) ---
+    const savedData: any = {};
+    
+    // 1. Prepare and Save City Stops
+    const cityTempIdToDbIdMap = new Map<string, string>();
+    const cityStopPayload: any[] = [];
+    if (travelPlan.cityStops && travelPlan.cityStops.length > 0) {
+      travelPlan.cityStops.forEach((stop: any, index: number) => {
+        const newId = crypto.randomUUID();
+        cityTempIdToDbIdMap.set(stop.tempId, newId); // Map AI tempId to our new UUID
+        
+        cityStopPayload.push({
+          id: newId,
+          tripId: planRequest.tripId,
+          name: stop.name || `City ${index + 1}`,
+          lat: stop.lat || 0,
+          lng: stop.lng || 0,
+          arrival: stop.arrival || planRequest.startDate,
+          departure: stop.departure || planRequest.endDate,
+          order: stop.order !== undefined ? stop.order : index,
+          notes: stop.notes || null,
+        });
+      });
+      
+      const { data: cityStops, error: cityStopsError } = await supabase
+        .from("CityStop")
+        .insert(cityStopPayload)
+        .select();
+        
+      savedData.cityStops = cityStops || [];
+      if (cityStopsError) console.error("Error saving city stops:", cityStopsError);
+    }
+
+    // 2. Prepare and Save POIs (using the city map)
+    const poiTempIdToDbIdMap = new Map<string, string>();
+    const poiPayload: any[] = [];
+    if (travelPlan.pois && travelPlan.pois.length > 0) {
+      travelPlan.pois.forEach((poi: any) => {
+        const newId = crypto.randomUUID();
+        poiTempIdToDbIdMap.set(poi.tempId, newId); // Map AI tempId to our new UUID
+        
+        poiPayload.push({
+          id: newId,
+          tripId: planRequest.tripId,
+          name: poi.name,
+          lat: poi.lat || 0,
+          lng: poi.lng || 0,
+          cityStopId: cityTempIdToDbIdMap.get(poi.cityTempId) || null, // <-- RELIABLE LINK
+          tags: poi.type ? [poi.type, poi.category].filter(Boolean) : null,
+          photoUrl: poi.photoUrl || null,
+          websiteUrl: poi.websiteUrl || null,
+          rating: poi.rating || null,
+          priceLevel: poi.priceLevel || null,
+          externalId: null,
+          // Add other POI fields from your 'poi' object if needed
+          description: poi.description || null,
+          cost: poi.cost || null,
+          duration: poi.duration || null,
+        });
+      });
+
+      const { data: pois, error: poisError } = await supabase
+        .from("Poi")
+        .insert(poiPayload)
+        .select();
+        
+      savedData.pois = pois || [];
+      if (poisError) console.error("Error saving POIs:", poisError);
+    }
+
+    // 3. Prepare and Save Itinerary Items (using the POI map)
+    if (travelPlan.itinerary && travelPlan.itinerary.length > 0) {
+      const itineraryItemsPayload: any[] = [];
+      travelPlan.itinerary.forEach((day: any) => {
+        if (day.items && Array.isArray(day.items)) {
+          day.items.forEach((item: any) => {
+            itineraryItemsPayload.push({
+              id: crypto.randomUUID(),
+              tripId: planRequest.tripId,
+              day: day.day || day.date,
+              title: item.title,
+              kind: item.kind || "ACTIVITY",
+              startTime: item.startTime || null,
+              endTime: item.endTime || null,
+              cost: item.cost || null,
+              notes: item.notes || null,
+              poiId: poiTempIdToDbIdMap.get(item.poiTempId) || null, // <-- RELIABLE LINK
+            });
+          });
+        }
+      });
+
+      const { data: items, error: itemsError } = await supabase
+        .from("ItineraryItem")
+        .insert(itineraryItemsPayload)
+        .select();
+      
+      savedData.itineraryItems = items || [];
+      if (itemsError) console.error("Error saving itinerary items:", itemsError);
+    }
+
+    // Return comprehensive plan
+    return new Response(
+      JSON.stringify({
+        success: true,
+        tripId: planRequest.tripId,
+        plan: travelPlan,
+        saved: savedData,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  } catch (error: any) {
+    console.error("Error in generate-trip-plan:", error);
+    return new Response(
+      JSON.stringify({ error: "Internal server error", details: error.message }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+});

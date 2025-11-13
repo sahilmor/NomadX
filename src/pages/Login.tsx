@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,15 +8,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AuthLayout from "@/components/AuthLayout";
 import { signInWithPassword, signInWithGoogle } from "@/services/auth.service";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 const Login = () => {
+  const { user, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Redirect if already logged in (handles OAuth callback)
+  useEffect(() => {
+    if (!isLoading && user) {
+      // Clean up OAuth callback URL hash
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, isLoading, navigate]);
+
+  // Show loading spinner while checking auth state
+  if (isLoading) {
+    return <LoadingSpinner fullscreen text="Checking authentication..." />;
+  }
+
   const handleGoogleSignIn = async () => {
+    setLoading(true);
     const { error } = await signInWithGoogle();
     if (error) {
       toast({
@@ -24,7 +44,9 @@ const Login = () => {
         description: error.message,
         variant: "destructive",
       });
+      setLoading(false);
     }
+    // Note: OAuth redirect will happen automatically, no need to navigate manually
   };
 
   const handleLogin = async (e: React.FormEvent) => {

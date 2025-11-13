@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { getSession, onAuthStateChange } from '@/services/auth.service';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -16,27 +16,50 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSession = async () => {
+    const initializeAuth = async () => {
       try {
-        const { data } = await getSession();
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
+        // First, handle OAuth callback if present in URL
+        // Supabase automatically processes URL hash fragments for OAuth
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Error getting session:", error);
+        }
+        
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
       } catch (error) {
-        console.error("Error fetching session:", error);
+        console.error("Error initializing auth:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSession();
+    initializeAuth();
 
-    const subscription = onAuthStateChange((session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // Listen for auth state changes (including OAuth callbacks)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
+      // Handle OAuth callback events
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(session);
+        setUser(session?.user ?? null);
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+      } else {
+        // For other events, update state
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
+      
+      // Update loading state
+      setIsLoading(false);
     });
 
     return () => {
-      subscription?.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from "@/lib/utils";
 
 // Define the types for the component's props
 interface LoadingSpinnerProps {
@@ -12,6 +13,11 @@ interface LoadingSpinnerProps {
    */
   text?: string;
   /**
+   * If true, the spinner will cover the entire screen as an overlay.
+   * @default false
+   */
+  fullscreen?: boolean;
+  /**
    * Allows passing additional Tailwind CSS classes for custom styling.
    */
   className?: string;
@@ -24,6 +30,7 @@ interface LoadingSpinnerProps {
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 'md',
   text,
+  fullscreen = false,
   className = '',
 }) => {
   const sizeClasses = {
@@ -35,16 +42,22 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   const spinnerClasses = `
     animate-spin 
     rounded-full 
-    border-blue-500 
-    border-t-transparent 
+    border-primary 
+    border-t-transparent
     ${sizeClasses[size]}
-    ${className}
   `;
 
+  // Conditionally apply fullscreen overlay styles
+  const containerClasses = cn(
+    "flex flex-col items-center justify-center gap-4",
+    fullscreen && "fixed inset-0 z-50 bg-background/80 backdrop-blur-sm",
+    className
+  );
+
   return (
-    <div className="flex flex-col items-center justify-center gap-4" aria-live="polite" aria-busy="true">
+    <div className={containerClasses} aria-live="polite" aria-busy="true">
       <div className={spinnerClasses}></div>
-      {text && <p className="text-gray-600 text-lg animate-pulse">{text}</p>}
+      {text && <p className="text-muted-foreground text-lg animate-pulse">{text}</p>}
     </div>
   );
 };

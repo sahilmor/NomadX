@@ -2,14 +2,26 @@ import React, { useState } from "react";
 import { ArrowLeft, ArrowRight, MapPin, Calendar, Users, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Link } from "react-router-dom";
-import Header from "@/components/Header";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { createTrip, generateTripPlan } from "@/services/trip.service";
+import { useToast } from "@/components/ui/use-toast";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import { Sparkles } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const TripCreator = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
+  const [creating, setCreating] = useState(false);
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [useAI, setUseAI] = useState(true);
   const [tripData, setTripData] = useState({
     title: "",
     startDate: "",
@@ -17,6 +29,7 @@ const TripCreator = () => {
     currency: "USD",
     budget: "",
     travelers: 1,
+    description: "",
   });
 
   const steps = [
@@ -51,6 +64,119 @@ const TripCreator = () => {
     setTripData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleCreateTrip = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "Please log in to create a trip",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate required fields
+    if (!tripData.title || !tripData.startDate || !tripData.endDate) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const tripId = crypto.randomUUID();
+      const tripInsert = {
+        id: tripId,
+        ownerId: user.id,
+        title: tripData.title,
+        startDate: tripData.startDate,
+        endDate: tripData.endDate,
+        currency: tripData.currency,
+        budgetCap: tripData.budget ? parseFloat(tripData.budget) : null,
+        visibility: "PRIVATE" as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const result = await createTrip(tripInsert);
+
+      if (result.error) {
+        throw result.error;
+      }
+
+      toast({
+        title: "Trip Created!",
+        description: useAI 
+          ? "Generating your comprehensive travel plan with AI..." 
+          : "Your trip has been created successfully.",
+      });
+
+      // Generate AI plan if enabled
+      if (useAI && result.data) {
+        setGeneratingPlan(true);
+        try {
+          const planResult = await generateTripPlan(tripId, {
+            title: tripData.title,
+            startDate: tripData.startDate,
+            endDate: tripData.endDate,
+            budget: tripData.budget ? parseFloat(tripData.budget) : undefined,
+            currency: tripData.currency,
+            description: tripData.description,
+            travelers: tripData.travelers,
+          });
+
+          if (planResult.error) {
+            console.error("Error generating plan:", planResult.error);
+            const errorMessage = planResult.error.includes('404') 
+              ? 'AI service not deployed. Please deploy the Edge Function first.'
+              : planResult.error.includes('401') || planResult.error.includes('token')
+              ? 'Authentication failed. Please try logging in again.'
+              : planResult.error.includes('Gemini API key')
+              ? 'Gemini API key not configured. Please set it in Supabase secrets.'
+              : planResult.error;
+            
+            toast({
+              title: "Trip Created",
+              description: `Trip created but AI plan generation failed: ${errorMessage}. Check console for details.`,
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "Success!",
+              description: "Your trip and comprehensive travel plan have been generated!",
+            });
+          }
+        } catch (planError: any) {
+          console.error("Error generating plan:", planError);
+          const errorMessage = planError.message || planError.toString();
+          toast({
+            title: "Trip Created",
+            description: `Trip created but AI plan generation failed: ${errorMessage}. Check console for details.`,
+            variant: "default",
+          });
+        } finally {
+          setGeneratingPlan(false);
+        }
+      }
+
+      // Navigate to dashboard after a short delay
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, useAI ? 2000 : 1000);
+    } catch (error: any) {
+      console.error("Error creating trip:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create trip. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const renderStep = () => {
     switch (currentStep) {
       case 1:
@@ -70,6 +196,20 @@ const TripCreator = () => {
                   onChange={(e) => handleInputChange("title", e.target.value)}
                   className="mt-1"
                 />
+              </div>
+              <div>
+                <Label htmlFor="description" className="text-sm font-medium">Description (Optional)</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Tell us about your travel style, interests, or any specific requirements... E.g., 'I love outdoor adventures, local food experiences, and prefer budget-friendly options. Interested in hiking, beaches, and cultural sites.'"
+                  value={tripData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  className="mt-1 min-h-[100px]"
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This helps AI create a more personalized plan with activities, off-beat locations, and recommendations tailored to your interests
+                </p>
               </div>
             </div>
           </div>
@@ -182,6 +322,29 @@ const TripCreator = () => {
                 />
               </div>
             </div>
+            
+            {/* AI Generation Option */}
+            <div className="mt-6 p-4 rounded-lg border border-primary/20 bg-primary/5">
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="useAI"
+                  checked={useAI}
+                  onCheckedChange={(checked) => setUseAI(checked as boolean)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <Label htmlFor="useAI" className="flex items-center space-x-2 cursor-pointer">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span className="font-semibold">Generate AI-Powered Travel Plan</span>
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Get a comprehensive custom travel plan with AI including routes, transportation, 
+                    accommodations, food recommendations, activities, off-beat locations, and a complete guide.
+                    This will take a few moments to generate.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         );
       
@@ -192,10 +355,7 @@ const TripCreator = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
-      <main className="pt-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="mb-8">
             <Link to="/dashboard" className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors mb-4">
@@ -241,7 +401,7 @@ const TripCreator = () => {
             <div className="mt-6 w-full bg-muted rounded-full h-2">
               <div
                 className="bg-gradient-to-r from-primary to-primary-light h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
+                style={{ width: `${((currentStep - 1) * 100) / (steps.length - 1)}%` }}
               />
             </div>
           </div>
@@ -276,15 +436,37 @@ const TripCreator = () => {
                 <ArrowRight className="w-4 h-4" />
               </Button>
             ) : (
-              <Button className="btn-hero flex items-center space-x-2">
-                <span>Create Trip</span>
-                <ArrowRight className="w-4 h-4" />
+              <Button 
+                onClick={handleCreateTrip} 
+                className="btn-hero flex items-center space-x-2"
+                disabled={creating || generatingPlan}
+              >
+                {creating || generatingPlan ? (
+                  <>
+                    {useAI && generatingPlan ? (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
+                        <span>Generating AI Plan...</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
+                        <span>{creating ? "Creating..." : "Generating..."}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {useAI && <Sparkles className="w-4 h-4 mr-2" />}
+                    <span>Create Trip{useAI ? " with AI Plan" : ""}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
   );
 };
 

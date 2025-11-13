@@ -2,8 +2,22 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://mnsqjfwgpmyiepruifwr.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1uc3FqZndncG15aWVwcnVpZndyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4NTg1NjIsImV4cCI6MjA3MzQzNDU2Mn0.xqN3JUX3f60vGLsNSSRMvVqaZyomI8N1ehrD3itIPV8";
+// Get environment variables (must be prefixed with VITE_ for Vite to expose them)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mnsqjfwgpmyiepruifwr.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Validate environment variables
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  const errorMsg = 'Missing VITE_SUPABASE_ANON_KEY environment variable.\n' +
+    'Please create a .env file in the root directory with:\n' +
+    'VITE_SUPABASE_URL=https://mnsqjfwgpmyiepruifwr.supabase.co\n' +
+    'VITE_SUPABASE_ANON_KEY=your-anon-key-here\n\n' +
+    'Get your keys from: https://app.supabase.com/project/mnsqjfwgpmyiepruifwr/settings/api\n' +
+    'NOTE: The .env file should NOT use JavaScript syntax (no const, no quotes, no semicolons).\n' +
+    'It should be: VITE_SUPABASE_ANON_KEY=eyJhbGci... (not: const SUPABASE_PUBLISHABLE_KEY = "...")';
+  console.error(errorMsg);
+  throw new Error('Invalid Supabase configuration. Check console for details.');
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

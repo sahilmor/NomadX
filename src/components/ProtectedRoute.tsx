@@ -1,27 +1,22 @@
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext'; // Make sure to uncomment this
 import { Navigate, Outlet } from 'react-router-dom';
 import LoadingSpinner from './LoadingSpinner';
-import { useEffect, useState } from 'react';
+// Remove the 'useEffect' and 'useState' for the fake auth
 
 const ProtectedRoute = () => {
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setTimeout(() => {
-      setUser({ name: 'Sahil Mor' });
-      setIsLoading(false);
-    }, 2000);
-  }, []);
+  // Use the real user and loading state from your AuthContext
+  const { user, isLoading } = useAuth(); 
 
   if (isLoading) {
     return <LoadingSpinner text="Loading profile..." />;
   }
 
   if (!user) {
+    // If not loading and no user, redirect to login
     return <Navigate to="/login" replace />;
   }
 
+  // If user exists, render the child routes (e.g., Dashboard)
   return <Outlet />;
 };
 
