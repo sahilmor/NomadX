@@ -106,19 +106,19 @@ const Dashboard = () => {
       gradient: "from-primary to-primary-light",
     },
     {
-      title: "Total Saved",
+      title: "Total Spent",
       value: `$${stats.totalSaved.toLocaleString()}`,
       change: "",
       icon: DollarSign,
       gradient: "from-coral to-coral-light",
     },
-    {
-      title: "Countries Planned",
-      value: stats.countriesPlanned.toString(),
-      change: "",
-      icon: TrendingUp,
-      gradient: "from-mustard to-mustard-light",
-    },
+    // {
+    //   title: "Countries Planned",
+    //   value: stats.countriesPlanned.toString(),
+    //   change: "",
+    //   icon: TrendingUp,
+    //   gradient: "from-mustard to-mustard-light",
+    // },
     {
       title: "Travel Buddies",
       value: stats.travelBuddies.toString(),
@@ -178,7 +178,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {statsData.map((stat, index) => {
             const Icon = stat.icon;
             return (

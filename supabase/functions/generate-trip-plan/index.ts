@@ -1,15 +1,12 @@
-// edge-function/generate-trip-plan.ts
-// Supabase Edge Function (Deno) - Generate & save travel plan using Gemini (API key from env)
-
 // @ts-ignore - Deno runtime imports
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 // @ts-ignore - Deno runtime imports
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = [
-  "http://localhost:8080", // local dev (supabase studio)
+  "http://localhost:8080", // local dev
   "http://localhost:3000", // nextjs dev
-  // "https://your-production-app.com", // add your production origin here
+  // "https://your-production-app.com", // ADD YOUR PRODUCTION URL HERE
 ];
 
 // Deno global is available in Supabase Edge Functions runtime
@@ -24,14 +21,9 @@ declare const crypto: {
   randomUUID(): string;
 };
 
-// Read secrets from environment
-const GEMINI_API_KEY = Deno.env.get("VITE_GEMINI_API_KEY");
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-// Gemini endpoint (keep key out of URL)
+// Use the stable Gemini 1.5 Pro model
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-latest:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent";
 
 interface GeneratePlanRequest {
   tripId: string;
@@ -49,6 +41,11 @@ serve(async (req: {
   method: string;
   json: () => Promise<GeneratePlanRequest>;
 }) => {
+  // --- SECRETS READ INSIDE THE HANDLER ---
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
   // Basic CORS handling
   const origin = req.headers.get("Origin") || "";
   const isAllowedOrigin = ALLOWED_ORIGINS.includes(origin);
@@ -79,9 +76,17 @@ serve(async (req: {
   }
 
   try {
+    // --- VALIDATE ALL SECRETS ---
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return new Response(
-        JSON.stringify({ error: "Supabase url/service role key not configured" }),
+        JSON.stringify({ error: "Supabase internal configuration error." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    
+    if (!GEMINI_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Gemini API key not configured. Please set the secret in your Supabase project." }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -150,9 +155,6 @@ TRIP DETAILS:
 - Budget: ${planRequest.budget ? `${planRequest.budget} ${planRequest.currency || "USD"}` : "Flexible budget"}
 - Number of Travelers: ${planRequest.travelers || 1}
 - Description: ${planRequest.description || "General travel experience"}
-
-REQUIREMENTS - Create a COMPLETE custom travel package including:
-(All your sections 1-8 go here)
 
 OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
 
@@ -303,27 +305,26 @@ IMPORTANT:
 - Include practical tips and insider knowledge
 - Consider the number of travelers in recommendations`;
 
-    // Build Gemini headers. Prefer Bearer if configured, otherwise API key header.
-    const geminiHeaders: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY!,
-    };
-
     // Call Gemini
-    const geminiResponse = await fetch(GEMINI_API_URL, {
-      method: "POST",
-      headers: geminiHeaders,
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.8,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 8192,
-          responseMimeType: "application/json",
+    const geminiResponse = await fetch(
+      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.8,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+          },
+        }),
+      }
+    );
 
     if (!geminiResponse.ok) {
       const errText = await geminiResponse.text();
@@ -344,14 +345,28 @@ IMPORTANT:
     // Parse JSON from AI
     let travelPlan: any;
     try {
-      travelPlan = JSON.parse(aiContent);
-    } catch (e) {
-      console.error("Error parsing AI response:", e);
+      // --- THIS IS THE FIX ---
+      // Clean the string before parsing:
+      // 1. Find the first '{'
+      // 2. Find the last '}'
+      // 3. Extract everything in between.
+      const startIndex = aiContent.indexOf('{');
+      const endIndex = aiContent.lastIndexOf('}');
+      
+      if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+        throw new Error("No valid JSON object found in AI response.");
+      }
+
+      const jsonString = aiContent.substring(startIndex, endIndex + 1);
+      travelPlan = JSON.parse(jsonString);
+      
+    } catch (e: any) {
+      console.error("Error parsing AI response:", e.message);
       return new Response(
         JSON.stringify({
           error: "Failed to parse AI response",
-          details: "AI response format is invalid",
-          rawResponse: aiContent.substring(0, 500),
+          details: e.message,
+          rawResponse: aiContent.substring(0, 500), // Show start of bad response
         }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
@@ -435,7 +450,7 @@ IMPORTANT:
             itineraryItemsPayload.push({
               id: crypto.randomUUID(),
               tripId: planRequest.tripId,
-              day: day.day || day.date,
+              day: day.day || planRequest.startDate,
               title: item.title,
               kind: item.kind || "ACTIVITY",
               startTime: item.startTime || null,
