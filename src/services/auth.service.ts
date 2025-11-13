@@ -3,27 +3,16 @@ import type { SignUpWithPasswordCredentials, SignInWithPasswordCredentials } fro
 import { ensureUserExists } from './user.service';
 
 // Sign up with email and password
-export const signUpWithPassword = async (credentials: SignUpWithPasswordCredentials & { username: string }) => {
-  // We can't use supabase.auth.signUp() as it doesn't allow pre-checking the public.User table.
-  // Instead, we call our custom RPC function.
-  const { data, error } = await supabase.rpc('signup_with_username', {
-    email: credentials.email,
-    password: credentials.password,
-    username: credentials.username
-  });
-
-  if (error) {
-    console.error('Error signing up:', error);
-    // Return the error so the form can display it
-    return { data: null, error };
-  }
-
-  // After RPC success, the user is created in auth.users and (via trigger) public.User.
-  // Now, log the user in.
-  return supabase.auth.signInWithPassword({
-    email: credentials.email,
-    password: credentials.password
-  });
+export const signUpWithPassword = async (credentials: SignUpWithPasswordCredentials) => {
+  // --- THIS IS THE FIX ---
+  // We use the standard supabase.auth.signUp, not the RPC function.
+  const result = await supabase.auth.signUp(credentials);
+  // --- END FIX ---
+  
+  // If signup successful, our DB trigger will handle creating the user.
+  // The trigger might fail if the username is taken, which is what we want.
+  // We just return the result to the UI.
+  return result;
 };
 
 // Sign in with email and password

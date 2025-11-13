@@ -4,26 +4,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = [
-  "http://localhost:8080", // local dev
-  "http://localhost:3000", // nextjs dev
-  // "https://your-production-app.com", // ADD YOUR PRODUCTION URL HERE
+  "http://localhost:8080",
+  "http://localhost:3000",
 ];
 
-// Deno global is available in Supabase Edge Functions runtime
 declare const Deno: {
   env: {
     get(key: string): string | undefined;
   };
 };
 
-// Crypto is available in Deno runtime
 declare const crypto: {
   randomUUID(): string;
 };
 
-// Use the stable Gemini 1.5 Pro model
 const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
 interface GeneratePlanRequest {
   tripId: string;
@@ -450,7 +446,7 @@ IMPORTANT:
             itineraryItemsPayload.push({
               id: crypto.randomUUID(),
               tripId: planRequest.tripId,
-              day: day.day || planRequest.startDate,
+              day: day.date || planRequest.startDate,
               title: item.title,
               kind: item.kind || "ACTIVITY",
               startTime: item.startTime || null,

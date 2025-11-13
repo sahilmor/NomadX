@@ -20,10 +20,8 @@ const Signup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirect if already logged in (handles OAuth callback)
   useEffect(() => {
     if (!isLoading && user) {
-      // Clean up OAuth callback URL hash
       if (window.location.hash) {
         window.history.replaceState(null, '', window.location.pathname);
       }
@@ -31,7 +29,6 @@ const Signup = () => {
     }
   }, [user, isLoading, navigate]);
 
-  // Show loading spinner while checking auth state
   if (isLoading) {
     return <LoadingSpinner fullscreen text="Checking authentication..." />;
   }
@@ -47,28 +44,35 @@ const Signup = () => {
       });
       setLoading(false);
     }
-    // Note: OAuth redirect will happen automatically, no need to navigate manually
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    // Updated to call the new RPC-based function
+    // This is the standard call, which is correct.
     const { error } = await signUpWithPassword({ 
       email, 
       password,
-      username: username // Pass username directly
+      options: {
+        data: {
+          full_name: username, // For auth.users `display_name`
+          username: username,  // For our trigger to read
+        }
+      }
     });
 
     if (error) {
-      // Check for our new specific error messages
+      // --- THIS IS THE UPDATED ERROR HANDLING ---
       let description = error.message;
-      if (error.message.includes('Username already taken')) {
+      
+      // This is the error the database will send if the UNIQUE constraint fails
+      if (error.message.includes('User_userName_key')) {
         description = "This username is already taken. Please try another one.";
-      } else if (error.message.includes('Email already in use')) {
+      } else if (error.message.includes('users_email_key')) {
         description = "This email is already associated with an account.";
       }
+      // --- END UPDATED ERROR HANDLING ---
 
       toast({
         title: "Error signing up",
@@ -78,9 +82,8 @@ const Signup = () => {
     } else {
       toast({
         title: "Success!",
-        description: "Account created. You are now logged in.",
+        description: "Account created. Please check your email to verify.",
       });
-      // The service function now handles login, so we can navigate directly
       navigate('/dashboard');
     }
     setLoading(false);

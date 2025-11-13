@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { ArrowLeft, ArrowRight, MapPin, Calendar, Users, DollarSign, Sparkles, UserPlus, X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ArrowLeft, ArrowRight, MapPin, Calendar, Users, DollarSign, Sparkles, UserPlus, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,9 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { createTrip, generateTripPlan } from "@/services/trip.service";
+import { searchUsersByUsername } from "@/services/user.service";
 import { useToast } from "@/components/ui/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { Tables } from "@/integrations/supabase/types";
+
+type SearchUser = Pick<Tables<'User'>, 'id' | 'userName' | 'name' | 'image'>;
 
 const TripCreator = () => {
   const { user } = useAuth();
@@ -21,17 +27,49 @@ const TripCreator = () => {
   const [creating, setCreating] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [useAI, setUseAI] = useState(true);
-  const [inviteUsername, setInviteUsername] = useState(""); // State for invite input
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const [tripData, setTripData] = useState({
     title: "",
     startDate: "",
     endDate: "",
     currency: "INR",
     budget: "",
-    travelers: 1, // Will be auto-calculated: 1 (you) + invitedFriends.length
+    travelers: 1,
     description: "",
-    invitedFriends: [] as string[], // New state for invited friends
+    invitedFriends: [] as { id: string, userName: string | null }[],
   });
+
+  useEffect(() => {
+    if (!user) return;
+
+    const search = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      const { data } = await searchUsersByUsername(searchQuery, user.id);
+      
+      const newResults = data?.filter(
+        u => !tripData.invitedFriends.some(f => f.id === u.id)
+      ) || [];
+      
+      setSearchResults(newResults);
+      setIsSearching(false);
+    };
+
+    const delayDebounceFn = setTimeout(() => {
+      search();
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, user, tripData.invitedFriends]);
 
   const steps = [
     { number: 1, title: "Trip Basics", icon: MapPin },
@@ -60,31 +98,25 @@ const TripCreator = () => {
     setTripData(prev => ({ ...prev, [field]: value }));
   };
 
-  // --- New Handlers for Inviting Friends ---
-  const handleAddFriend = () => {
-    const newFriend = inviteUsername.trim();
-    if (newFriend === "") return;
-
-    // Prevent adding duplicates
-    if (!tripData.invitedFriends.includes(newFriend)) {
+  const handleAddFriend = (friend: SearchUser) => {
+    if (!tripData.invitedFriends.some(f => f.id === friend.id)) {
       setTripData(prev => ({
         ...prev,
-        invitedFriends: [...prev.invitedFriends, newFriend],
-        travelers: prev.travelers + 1, // Auto-increment traveler count
+        invitedFriends: [...prev.invitedFriends, { id: friend.id, userName: friend.userName }],
+        travelers: prev.travelers + 1,
       }));
     }
-    setInviteUsername(""); // Clear input
+    setSearchQuery("");
+    setSearchResults([]);
   };
 
-  const handleRemoveFriend = (username: string) => {
+  const handleRemoveFriend = (friendId: string) => {
     setTripData(prev => ({
       ...prev,
-      invitedFriends: prev.invitedFriends.filter(f => f !== username),
-      travelers: prev.travelers - 1, // Auto-decrement traveler count
+      invitedFriends: prev.invitedFriends.filter(f => f.id !== friendId),
+      travelers: prev.travelers - 1,
     }));
   };
-  // --- End New Handlers ---
-
 
   const handleCreateTrip = async () => {
     if (!user) {
@@ -127,11 +159,9 @@ const TripCreator = () => {
         throw result.error;
       }
 
-      // --- TODO: Add logic to invite friends ---
-      // After trip is created, you would loop through `tripData.invitedFriends`,
-      // find their user IDs from your `User` table,
-      // and insert them into the `TripMember` table with the `tripId`.
-      // This requires new service functions (e.g., `findUserByUsername`, `addTripMember`).
+      // TODO: Add logic to invite friends
+      // const memberIds = tripData.invitedFriends.map(f => f.id);
+      // await addTripMembers(tripId, memberIds); 
       
       toast({
         title: "Trip Created!",
@@ -150,7 +180,7 @@ const TripCreator = () => {
             budget: tripData.budget ? parseFloat(tripData.budget) : undefined,
             currency: tripData.currency,
             description: tripData.description,
-            travelers: tripData.travelers, // Pass the final traveler count
+            travelers: tripData.travelers,
           });
 
           if (planResult.error) {
@@ -272,7 +302,6 @@ const TripCreator = () => {
           </div>
         );
       
-      // --- UPDATED STEP 3 ---
       case 3:
         return (
           <div className="space-y-6">
@@ -281,7 +310,6 @@ const TripCreator = () => {
               <p className="text-muted-foreground">Invite friends to collaborate on your plan.</p>
             </div>
 
-            {/* Read-only Traveler Count */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Total Travelers</Label>
               <div className="flex items-center space-x-4 mt-2">
@@ -294,47 +322,71 @@ const TripCreator = () => {
               </div>
             </div>
 
-            {/* Invite Friends Section */}
-            <div className="space-y-4">
-              <Label htmlFor="invite" className="text-sm font-medium">Invite Friends (by Username or Email)</Label>
-              <div className="flex items-center space-x-2">
-                <div className="relative flex-grow">
-                  <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    id="invite"
-                    placeholder="friend@example.com"
-                    value={inviteUsername}
-                    onChange={(e) => setInviteUsername(e.target.value)}
-                    className="pl-10"
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddFriend())}
-                  />
-                </div>
-                <Button type="button" variant="outline" onClick={handleAddFriend}>
-                  Add
-                </Button>
+            <div className="space-y-2">
+              <Label htmlFor="invite" className="text-sm font-medium">Invite Friends (by Username)</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  id="invite"
+                  placeholder="Start typing a username..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                  autoComplete="off"
+                />
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                They'll be able to view and edit the trip details with you.
-              </p>
             </div>
+
+            {(isSearching || searchResults.length > 0) && (
+              <Card className="border-border bg-muted/50">
+                <CardContent className="p-2 space-y-1">
+                  {isSearching && (
+                    <div className="flex items-center space-x-2 p-2">
+                      <Skeleton className="h-8 w-8 rounded-full" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </div>
+                  )}
+                  {!isSearching && searchResults.length > 0 && searchResults.map((friend) => (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full justify-start h-auto p-2"
+                      key={friend.id}
+                      onClick={() => handleAddFriend(friend)}
+                    >
+                      <Avatar className="h-8 w-8 mr-2">
+                        <AvatarImage src={friend.image || undefined} alt={friend.userName || 'User'} />
+                        <AvatarFallback>{friend.userName?.[0].toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="text-left">
+                        <p className="font-medium">{friend.userName}</p>
+                        {friend.name && <p className="text-xs text-muted-foreground">{friend.name}</p>}
+                      </div>
+                    </Button>
+                  ))}
+                  {!isSearching && searchResults.length === 0 && searchQuery.length > 1 && (
+                    <p className="p-2 text-sm text-muted-foreground text-center">No users found.</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             
-            {/* Invited Friends List */}
             {tripData.invitedFriends.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3 pt-4">
                 <Label className="text-sm font-medium">Invited</Label>
                 <div className="flex flex-wrap gap-2">
-                  {tripData.invitedFriends.map((username) => (
-                    <Badge key={username} variant="secondary" className="flex items-center gap-1 pl-3 pr-1 py-1 text-base rounded-md">
-                      <span>{username}</span>
+                  {tripData.invitedFriends.map((friend) => (
+                    <Badge key={friend.id} variant="secondary" className="flex items-center gap-1 pl-3 pr-1 py-1 text-base rounded-md">
+                      <span>{friend.userName}</span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5 rounded-full"
-                        onClick={() => handleRemoveFriend(username)}
+                        onClick={() => handleRemoveFriend(friend.id)}
                       >
                         <X className="h-3 w-3" />
-                        <span className="sr-only">Remove {username}</span>
+                        <span className="sr-only">Remove {friend.userName}</span>
                       </Button>
                     </Badge>
                   ))}
@@ -343,7 +395,6 @@ const TripCreator = () => {
             )}
           </div>
         );
-      // --- END UPDATED STEP 3 ---
       
       case 4:
         return (

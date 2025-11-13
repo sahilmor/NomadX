@@ -7,6 +7,7 @@ type TripInsert = TablesInsert<'Trip'>;
 type TripUpdate = TablesUpdate<'Trip'>;
 type UserProfile = Tables<'User'>;
 type TripMember = Tables<'TripMember'>;
+type TripMemberInsert = TablesInsert<'TripMember'>;
 
 export type TripMemberWithUser = TripMember & {
   User: Pick<UserProfile, 'id' | 'name' | 'image'> | null;
@@ -286,4 +287,35 @@ export const useTripMembers = (tripId: string) => {
     },
     enabled: !!tripId,
   });
+};
+
+export const addTripMembers = async (tripId: string, memberIds: string[]) => {
+  if (!memberIds || memberIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const membersToInsert: TripMemberInsert[] = memberIds.map((userId) => ({
+    id: crypto.randomUUID(),
+    tripId: tripId,
+    userId: userId,
+    role: 'VIEWER',
+    status: 'ACCEPTED'
+  }));
+
+  try {
+    const { data, error } = await supabase
+      .from('TripMember')
+      .insert(membersToInsert)
+      .select();
+
+    if (error) {
+      console.error('Error adding trip members:', error);
+      return { data: null, error };
+    }
+
+    return { data, error: null };
+  } catch (error: any) {
+    console.error('Error in addTripMembers:', error);
+    return { data: null, error };
+  }
 };

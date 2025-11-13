@@ -156,3 +156,28 @@ export const getUserTripsCount = async (userId: string) => {
     return { count: 0, error };
   }
 };
+
+export const searchUsersByUsername = async (searchText: string, currentUserId: string) => {
+  if (!searchText || searchText.trim().length < 2) {
+    return { data: [], error: null };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('User')
+      .select('id, userName, name, image')
+      .ilike('userName', `%${searchText}%`)
+      .neq('id', currentUserId)
+      .limit(5);
+
+    if (error) {
+      console.error('Error searching users:', error);
+      return { data: null, error };
+    }
+
+    return { data: data as Pick<UserProfile, 'id' | 'userName' | 'name' | 'image'>[], error: null };
+  } catch (error: any) {
+    console.error('Error in searchUsersByUsername:', error);
+    return { data: null, error };
+  }
+};
