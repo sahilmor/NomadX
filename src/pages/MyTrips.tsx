@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, MapPin, Calendar, DollarSign, Users } from "lucide-react";
 
 // Define the type for a single trip based on getUserTrips response

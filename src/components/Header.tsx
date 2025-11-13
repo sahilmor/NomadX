@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, MapPin, Calendar, DollarSign, Users, LogOut, Settings, User as UserIcon } from "lucide-react";
+import { Menu, MapPin, Calendar, DollarSign, Users, LogOut, Settings, User as UserIcon, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,7 +18,6 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const Header = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -28,17 +27,10 @@ const Header = () => {
       setUser(session?.user ?? null);
     });
 
-    // --- Scroll Listener ---
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-
-    window.addEventListener("scroll", handleScroll);
 
     // Cleanup function
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener("scroll", handleScroll);
     };
   }, []);
 
@@ -49,6 +41,7 @@ const Header = () => {
   const navLinks = [
     { name: "Dashboard", href: "/dashboard", icon: Calendar },
     { name: "My Trips", href: "/my-trips", icon: MapPin },
+    { name: "Inspirations", href: "/inspirations", icon: Compass },
     { name: "Budget", href: "/budget", icon: DollarSign },
     { name: "Friends", href: "/friends", icon: Users },
   ];
@@ -132,10 +125,7 @@ const Header = () => {
   return (
     <header 
       className={cn(
-        "fixed z-50 transition-all duration-300 ease-in-out",
-        isScrolled 
-          ? "top-0 left-0 right-0 rounded-none shadow-md bg-background/80 backdrop-blur-md border-b" 
-          : "top-4 left-4 right-4 rounded-2xl shadow-lg bg-background/60 backdrop-blur-xl border border-white/20"
+        "fixed z-50 transition-all duration-300 ease-in-out top-0 left-0 right-0 rounded-none shadow-md bg-background/80 backdrop-blur-md border-b" 
       )}
     >
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">

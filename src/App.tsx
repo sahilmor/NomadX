@@ -1,5 +1,4 @@
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
@@ -16,6 +15,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Header from "./components/Header"; // Import the Header
 import TripDetail from "./pages/TripDetail";
 import MyTrips from "./pages/MyTrips";
+import Inspirations from "./pages/Inspiration";
+import InspirationDetail from "./pages/InspirationDetail";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,8 @@ const App = () => (
                 <Route path="/friends" element={<Dashboard />} />
                 <Route path="/trip/new" element={<TripCreator />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/inspirations" element={<Inspirations />} />
+                <Route path="/inspirations/:id" element={<InspirationDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/my-trips/:tripId" element={<TripDetail />} />
               </Route>

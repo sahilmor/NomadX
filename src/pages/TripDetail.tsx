@@ -17,7 +17,6 @@ import {
   Users,
   DollarSign,
   List,
-  User,
   Clock,
   Landmark,
 } from "lucide-react";

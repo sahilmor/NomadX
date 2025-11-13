@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, MapPin, Calendar, DollarSign, Users, TrendingUp } from "lucide-react";
+import { Plus, MapPin, Calendar, DollarSign, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,10 +63,6 @@ const Dashboard = () => {
         const totalBudget = allTrips.reduce((sum, trip) => sum + (trip.budgetCap || 0), 0);
         const totalSaved = Math.max(0, totalBudget - totalExpenses);
 
-        // Count unique countries (simplified - would need CityStop data)
-        const countriesPlanned = new Set(allTrips.map(() => "country")).size; // Placeholder
-
-        // Count total travel buddies (trip members)
         const totalMembers = allTrips.reduce((sum, trip) => sum + (trip.membersCount || 0), 0);
 
         setStats({
@@ -249,7 +245,7 @@ const Dashboard = () => {
                     return (
                       <Link
                         key={trip.id}
-                        to={`/trips/${trip.id}`}
+                        to={`/my-trips/${trip.id}`}
                         className="group p-6 rounded-2xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer block"
                       >
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

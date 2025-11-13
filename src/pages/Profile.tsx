@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { MapPin, Calendar, DollarSign, Users, Globe, Mail, Building2, ArrowLeft, Edit } from "lucide-react";
+import { MapPin, Calendar, DollarSign, Globe, Mail, Building2, ArrowLeft, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
