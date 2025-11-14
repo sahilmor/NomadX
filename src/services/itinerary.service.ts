@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables, TablesInsert } from '@/integrations/supabase/types';
-import { useQuery } from '@tanstack/react-query'; // Import useQuery
+import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 type CityStop = Tables<'CityStop'>;
 type CityStopInsert = TablesInsert<'CityStop'>;
@@ -8,8 +8,8 @@ type Poi = Tables<'Poi'>;
 type PoiInsert = TablesInsert<'Poi'>;
 type ItineraryItem = Tables<'ItineraryItem'>;
 type ItineraryItemInsert = TablesInsert<'ItineraryItem'>;
+type ItineraryItemUpdate = TablesUpdate<'ItineraryItem'>;
 
-// Save city stops from AI plan
 export const saveCityStops = async (tripId: string, cityStops: Array<{
   name: string;
   lat: number;
@@ -49,7 +49,6 @@ export const saveCityStops = async (tripId: string, cityStops: Array<{
   }
 };
 
-// Save POIs (Points of Interest) from AI plan
 export const savePOIs = async (tripId: string, pois: Array<{
   name: string;
   lat: number;
@@ -94,7 +93,6 @@ export const savePOIs = async (tripId: string, pois: Array<{
   }
 };
 
-// Save itinerary items from AI plan
 export const saveItineraryItems = async (tripId: string, items: Array<{
   day: string;
   title: string;
@@ -136,7 +134,6 @@ export const saveItineraryItems = async (tripId: string, items: Array<{
   }
 };
 
-// Get itinerary for a trip
 export const getTripItinerary = async (tripId: string) => {
   try {
     const { data, error } = await supabase
@@ -158,10 +155,9 @@ export const getTripItinerary = async (tripId: string) => {
   }
 };
 
-// --- NEW: React Query hook for getTripItinerary ---
 export const useTripItinerary = (tripId: string) => {
   return useQuery({
-    queryKey: ['tripItinerary', tripId],
+    queryKey: ['itinerary', tripId],
     queryFn: async () => {
       const { data, error } = await getTripItinerary(tripId);
       if (error) throw new Error(error.message);
@@ -171,8 +167,6 @@ export const useTripItinerary = (tripId: string) => {
   });
 };
 
-
-// Get city stops for a trip
 export const getTripCityStops = async (tripId: string) => {
   try {
     const { data, error } = await supabase
@@ -193,7 +187,6 @@ export const getTripCityStops = async (tripId: string) => {
   }
 };
 
-// Get POIs for a trip
 export const getTripPOIs = async (tripId: string) => {
   try {
     const { data, error } = await supabase
@@ -213,15 +206,163 @@ export const getTripPOIs = async (tripId: string) => {
   }
 };
 
-// --- NEW: React Query hook for getTripPOIs ---
 export const useTripPOIs = (tripId: string) => {
   return useQuery({
-    queryKey: ['tripPOIs', tripId],
+    queryKey: ['pois', tripId],
     queryFn: async () => {
       const { data, error } = await getTripPOIs(tripId);
       if (error) throw new Error(error.message);
       return data;
     },
     enabled: !!tripId,
+  });
+};
+
+export const createItineraryItem = async (item: ItineraryItemInsert) => {
+  // Ensure we always send an id (like saveItineraryItems does)
+  const { id: _ignored, ...rest } = item;
+
+  const insertPayload = {
+    id: crypto.randomUUID(),
+    ...rest,
+  };
+
+  const { data, error } = await supabase
+    .from("ItineraryItem")
+    .insert(insertPayload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating itinerary item:", error);
+    throw error;
+  }
+
+  return data as ItineraryItem;
+};
+
+export const useCreateItineraryItem = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createItineraryItem,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["itinerary", tripId] });
+    },
+  });
+};
+
+export const updateItineraryItem = async ({
+  id,
+  updates,
+}: {
+  id: string;
+  updates: ItineraryItemUpdate;
+}) => {
+  const { data, error } = await supabase
+    .from("ItineraryItem")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating itinerary item:", error);
+    throw error;
+  }
+
+  return data as ItineraryItem;
+};
+
+export const deleteItineraryItem = async (id: string) => {
+  const { error } = await supabase
+    .from("ItineraryItem")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error deleting itinerary item:", error);
+    throw error;
+  }
+
+  return { success: true };
+};
+
+export const useUpdateItineraryItem = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateItineraryItem,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['itinerary', tripId] });
+    },
+  });
+};
+
+
+
+export const useDeleteItineraryItem = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteItineraryItem,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['itinerary', tripId] });
+    },
+  });
+};
+
+export const createPoi = async (poi: PoiInsert) => {
+  // Remove any `id` coming from the caller to avoid overwriting
+  const { id: _ignored, ...rest } = poi;
+
+  const payload: PoiInsert = {
+    id: crypto.randomUUID(),
+    ...rest,
+  };
+
+  const { data, error } = await supabase
+    .from("Poi")
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating POI:", error);
+    throw error; // IMPORTANT: let React Query see the error
+  }
+
+  return data as Poi;
+};
+
+export const useCreatePoi = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createPoi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pois', tripId] });
+    },
+  });
+};
+
+export const deletePoi = async (id: string) => {
+  try {
+    const { error } = await supabase
+      .from('Poi')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error: any) {
+    console.error('Error deleting POI:', error);
+    return { error };
+  }
+};
+
+export const useDeletePoi = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deletePoi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pois', tripId] });
+    },
   });
 };

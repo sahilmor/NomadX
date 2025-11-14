@@ -118,7 +118,7 @@ export const updateUserProfile = async (userId: string, updates: UserProfileUpda
   }
 };
 
-export const updateAuthUserMetadata = async (metadata: { full_name?: string; avatar_url?: string }) => {
+export const updateAuthUserMetadata = async (metadata: { full_name?: string; avatar_url?: string; username?: string }) => {
   try {
     const { data, error } = await supabase.auth.updateUser({
       data: metadata

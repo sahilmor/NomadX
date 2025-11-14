@@ -1,8 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
+import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
+
+type NotificationInsert = TablesInsert<"notifications">;
 
 // Define the shape of our notification with the joined actor profile
 export type NotificationWithActor = Tables<'notifications'> & {
@@ -125,4 +127,32 @@ export const useMarkNotificationAsRead = () => {
       console.error("Failed to mark notification as read:", error);
     }
   });
+};
+
+export const createTripInviteNotification = async (params: {
+  recipientUserId: string; // who receives the notification
+  actorUserId: string;     // who triggered it (current user)
+  tripId: string;          // we save this in related_entity_id
+}) => {
+  const payload: NotificationInsert = {
+    id: crypto.randomUUID(),           // required in your schema style
+    user_id: params.recipientUserId,   // notification target
+    actor_id: params.actorUserId,      // who did the action
+    type: "TRIP_INVITE",               // 👈 must exist in your enum
+    is_read: false,
+    related_entity_id: params.tripId,  // used later to navigate to /trip/:id
+  };
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating trip invite notification:", error);
+    throw error;
+  }
+
+  return { data, error: null };
 };

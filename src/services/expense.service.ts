@@ -1,17 +1,18 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 type Expense = Tables<'Expense'>;
 type ExpenseInsert = TablesInsert<'Expense'>;
 type ExpenseUpdate = TablesUpdate<'Expense'>;
 
-// Get total expenses for a trip
 export const getTripExpenses = async (tripId: string) => {
   try {
     const { data, error } = await supabase
       .from('Expense')
       .select('*')
-      .eq('tripId', tripId);
+      .eq('tripId', tripId)
+      .order('date', { ascending: false });
 
     if (error) {
       console.error('Error fetching expenses:', error);
@@ -25,7 +26,18 @@ export const getTripExpenses = async (tripId: string) => {
   }
 };
 
-// Get total expenses amount for a trip
+export const useTripExpenses = (tripId: string) => {
+  return useQuery({
+    queryKey: ['expenses', tripId],
+    queryFn: async () => {
+      const { data, error } = await getTripExpenses(tripId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!tripId,
+  });
+};
+
 export const getTripTotalExpenses = async (tripId: string) => {
   try {
     const { data, error } = await getTripExpenses(tripId);
@@ -42,7 +54,6 @@ export const getTripTotalExpenses = async (tripId: string) => {
   }
 };
 
-// Get user's total expenses across all trips
 export const getUserTotalExpenses = async (userId: string) => {
   try {
     const { data, error } = await supabase
@@ -63,7 +74,6 @@ export const getUserTotalExpenses = async (userId: string) => {
   }
 };
 
-// Create expense
 export const createExpense = async (expenseData: ExpenseInsert) => {
   try {
     const { data, error } = await supabase
@@ -84,13 +94,22 @@ export const createExpense = async (expenseData: ExpenseInsert) => {
   }
 };
 
-// Update expense
-export const updateExpense = async (expenseId: string, updates: ExpenseUpdate) => {
+export const useCreateExpense = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createExpense,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses', tripId] });
+    },
+  });
+};
+
+export const updateExpense = async ({ id, updates }: { id: string, updates: ExpenseUpdate }) => {
   try {
     const { data, error } = await supabase
       .from('Expense')
       .update(updates)
-      .eq('id', expenseId)
+      .eq('id', id)
       .select()
       .single();
 
@@ -106,7 +125,16 @@ export const updateExpense = async (expenseId: string, updates: ExpenseUpdate) =
   }
 };
 
-// Delete expense
+export const useUpdateExpense = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateExpense,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses', tripId] });
+    },
+  });
+};
+
 export const deleteExpense = async (expenseId: string) => {
   try {
     const { error } = await supabase
@@ -126,3 +154,12 @@ export const deleteExpense = async (expenseId: string) => {
   }
 };
 
+export const useDeleteExpense = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteExpense,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses', tripId] });
+    },
+  });
+};

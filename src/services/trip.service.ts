@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
-import { useQuery } from '@tanstack/react-query'; 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'; 
 
 type Trip = Tables<'Trip'>;
 type TripInsert = TablesInsert<'Trip'>;
@@ -130,21 +130,63 @@ export const createTrip = async (tripData: TripInsert) => {
   }
 };
 
+/**
+ * Get all trips where the user is either:
+ *  - the owner (Trip.ownerId = userId), OR
+ *  - a member (TripMember.userId = userId)
+ * and compute membersCount, days, formattedStartDate.
+ */
 export const getUserTrips = async (userId: string) => {
   try {
-    const { data: trips, error: tripsError } = await supabase
-      .from('Trip')
-      .select('*')
-      .eq('ownerId', userId)
-      .order('createdAt', { ascending: false });
-
-    if (tripsError) {
-      console.error('Error fetching trips:', tripsError);
-      return { data: null, error: tripsError };
+    if (!userId) {
+      return { data: [] as (Trip & { membersCount: number; days: number; formattedStartDate: string })[], error: null };
     }
 
+    // 1) Trips the user owns
+    const { data: ownedTrips, error: ownedError } = await supabase
+      .from('Trip')
+      .select('*')
+      .eq('ownerId', userId);
+
+    if (ownedError) {
+      console.error('Error fetching owned trips:', ownedError);
+      return { data: null, error: ownedError };
+    }
+
+    // 2) Trips where the user is a member (TripMember)
+    const { data: memberRows, error: memberError } = await supabase
+      .from('TripMember')
+      .select(`
+        tripId,
+        Trip (*)
+      `)
+      .eq('userId', userId);
+
+    if (memberError) {
+      console.error('Error fetching member trips:', memberError);
+      return { data: null, error: memberError };
+    }
+
+    // 3) Combine owned trips and member trips, de-duplicate by trip id
+    const allTripsMap = new Map<string, Trip>();
+
+    (ownedTrips || []).forEach((trip) => {
+      if (!trip) return;
+      allTripsMap.set(trip.id, trip as Trip);
+    });
+
+    (memberRows || []).forEach((row: any) => {
+      const trip = row.Trip as Trip | null;
+      if (trip && trip.id) {
+        allTripsMap.set(trip.id, trip);
+      }
+    });
+
+    const allTrips = Array.from(allTripsMap.values());
+
+    // 4) For each trip, compute membersCount, days, formattedStartDate
     const tripsWithMembers = await Promise.all(
-      (trips || []).map(async (trip) => {
+      allTrips.map(async (trip) => {
         const { count } = await supabase
           .from('TripMember')
           .select('*', { count: 'exact', head: true })
@@ -152,14 +194,29 @@ export const getUserTrips = async (userId: string) => {
 
         return {
           ...trip,
-          membersCount: (count || 0) + 1, // Add 1 for the owner
+          // +1 to include owner (TripMember usually only stores guests)
+          membersCount: (count || 0) + 1,
           days: calculateDays(trip.startDate, trip.endDate),
           formattedStartDate: formatDate(trip.startDate),
         };
       })
     );
 
-    return { data: tripsWithMembers as (Trip & { membersCount: number; days: number; formattedStartDate: string })[], error: null };
+    // Sort by createdAt (newest first) – keeps your original behavior
+    tripsWithMembers.sort((a, b) => {
+      const aCreated = a.createdAt || '';
+      const bCreated = b.createdAt || '';
+      return bCreated.localeCompare(aCreated);
+    });
+
+    return {
+      data: tripsWithMembers as (Trip & {
+        membersCount: number;
+        days: number;
+        formattedStartDate: string;
+      })[],
+      error: null,
+    };
   } catch (error: any) {
     console.error('Error in getUserTrips:', error);
     return { data: null, error };
@@ -331,4 +388,71 @@ export const addTripMembers = async (tripId: string, memberIds: string[]) => {
     console.error('Error in addTripMembers:', error);
     return { data: null, error };
   }
+};
+
+export const removeTripMember = async ({ tripId, userId }: { tripId: string, userId: string }) => {
+  try {
+    const { error } = await supabase
+      .from('TripMember')
+      .delete()
+      .eq('tripId', tripId)
+      .eq('userId', userId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error: any) {
+    console.error('Error removing trip member:', error);
+    return { error };
+  }
+};
+
+export const useRemoveTripMember = (tripId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: removeTripMember,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tripMembers', tripId] });
+    },
+  });
+};
+
+export const inviteTripMember = async (payload: TripMemberInsert) => {
+  const { data, error } = await supabase
+    .from("TripMember")
+    .insert(payload)
+    .select("*, User(*)")
+    .single();
+
+  if (error) {
+    console.error("Error inviting trip member:", error);
+    throw error;
+  }
+
+  return data as TripMember;
+};
+
+export const useInviteTripMember = (tripId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: inviteTripMember,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tripMembers", tripId] });
+    },
+  });
+};
+
+/**
+ * Optional: React Query hook for "My Trips" page
+ */
+export const useUserTrips = (userId: string) => {
+  return useQuery({
+    queryKey: ['userTrips', userId],
+    queryFn: async () => {
+      const { data, error } = await getUserTrips(userId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!userId,
+  });
 };

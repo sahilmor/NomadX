@@ -9,9 +9,11 @@ import { getUpcomingTrips, getUserTrips } from "@/services/trip.service";
 import { getUserTotalExpenses } from "@/services/expense.service";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFriends } from "@/services/user.service";
 
 const Dashboard = () => {
   const { user, isLoading: authLoading } = useAuth();
+  const { data: friends, isLoading: isLoadingFriends } = useFriends(user?.id || "");
   const [loading, setLoading] = useState(true);
   const [trips, setTrips] = useState<any[]>([]);
   const [upcomingTrips, setUpcomingTrips] = useState<any[]>([]);
@@ -19,7 +21,6 @@ const Dashboard = () => {
     activeTrips: 0,
     totalSaved: 0,
     countriesPlanned: 0,
-    travelBuddies: 0,
   });
   const [userName, setUserName] = useState("");
 
@@ -63,13 +64,11 @@ const Dashboard = () => {
         const totalBudget = allTrips.reduce((sum, trip) => sum + (trip.budgetCap || 0), 0);
         const totalSaved = Math.max(0, totalBudget - totalExpenses);
 
-        const totalMembers = allTrips.reduce((sum, trip) => sum + (trip.membersCount || 0), 0);
 
         setStats({
           activeTrips,
           totalSaved,
           countriesPlanned: activeTrips, // Simplified
-          travelBuddies: totalMembers,
         });
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -83,16 +82,21 @@ const Dashboard = () => {
     }
   }, [user, authLoading]);
 
-  if (authLoading || loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <LoadingSpinner fullscreen text="Loading dashboard..." />
-        </div>
+  if (authLoading || loading || isLoadingFriends) {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <LoadingSpinner fullscreen text="Loading dashboard..." />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
+  // Safely dedupe by user ID
+const friendsCount = friends
+  ? new Set(friends.map((f: any) => f.id)).size
+  : 0;
+  
   const statsData = [
     {
       title: "Active Trips",
@@ -117,7 +121,7 @@ const Dashboard = () => {
     // },
     {
       title: "Travel Buddies",
-      value: stats.travelBuddies.toString(),
+      value: friendsCount.toString(),
       change: "",
       icon: Users,
       gradient: "from-primary to-coral",

@@ -53,18 +53,17 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
   );
 };
 
-// Main page component
+
 const MyTrips = () => {
   const { user, isLoading: authLoading } = useAuth();
 
-  // Fetch trips using React Query
   const {
     data: tripsResult,
     isLoading: isLoadingTrips,
   } = useQuery({
     queryKey: ["userTrips", user?.id],
     queryFn: () => getUserTrips(user!.id),
-    enabled: !!user, // Only run the query if the user is loaded
+    enabled: !!user,
   });
 
   const isLoading = authLoading || isLoadingTrips;

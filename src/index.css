@@ -210,3 +210,15 @@
     @apply bg-gradient-to-r from-coral to-mustard bg-clip-text text-transparent;
   }
 }
+
+/* Make sure Leaflet never sits above modals/dialogs */
+
+.leaflet-container {
+  z-index: 0 !important;
+}
+
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 0 !important;
+}

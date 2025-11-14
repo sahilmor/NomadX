@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, Save, Mail, Building2, DollarSign, Heart, Globe } from "lucide-react";
+import { ArrowLeft, Save, Mail, Building2, DollarSign, Heart, Globe, User, PersonStanding } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,12 +14,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 
 const currencies = [
   { value: "INR", label: "INR - Indian Rupee" },
-  { value: "EUR", label: "EUR - Euro" },
-  { value: "GBP", label: "GBP - British Pound" },
-  { value: "AUD", label: "AUD - Australian Dollar" },
-  { value: "CAD", label: "CAD - Canadian Dollar" },
-  { value: "JPY", label: "JPY - Japanese Yen" },
-  { value: "SGD", label: "SGD - Singapore Dollar" },
+
 ];
 
 const commonInterests = [
@@ -39,6 +34,7 @@ const commonInterests = [
 
 type FormData = {
   name: string;
+  userName: string
   email: string;
   homeCity: string;
   homeCurrency: string;
@@ -68,10 +64,12 @@ const Settings = () => {
       if (!user) return;
 
       try {
+        const initialName = user.user_metadata?.full_name || user.user_metadata?.username;
         const result = await getOrCreateUserProfile(user.id, user.email || '', user.user_metadata?.full_name);
         if (result.data) {
           setProfile(result.data);
-          setValue("name", result.data.name || user.user_metadata?.full_name || "");
+          setValue("name", result.data.name || initialName || "");
+          setValue("userName", result.data.userName || "");
           setValue("email", result.data.email || user.email || "");
           setValue("homeCity", result.data.homeCity || "");
           setValue("homeCurrency", result.data.homeCurrency || "INR");
@@ -79,6 +77,7 @@ const Settings = () => {
         } else {
           // Initialize with auth user data if no profile exists
           setValue("name", user.user_metadata?.full_name || "");
+          setValue("userName", user.user_metadata?.username || "");
           setValue("email", user.email || "");
           setValue("homeCity", "");
           setValue("homeCurrency", "INR");
@@ -112,6 +111,7 @@ const Settings = () => {
       // Update database profile
       const dbResult = await updateUserProfile(user.id, {
         name: data.name,
+        userName: data.userName,
         email: data.email,
         homeCity: data.homeCity || null,
         homeCurrency: data.homeCurrency,
@@ -121,9 +121,14 @@ const Settings = () => {
       // Update auth metadata
       await updateAuthUserMetadata({
         full_name: data.name,
+        username: data.userName,
       });
 
       if (dbResult.error) {
+        // Handle unique username constraint error from the DB
+        if (dbResult.error.message.includes('User_userName_key')) {
+          throw new Error("This username is already taken. Please choose another one.");
+        }
         throw dbResult.error;
       }
 
@@ -196,6 +201,28 @@ const Settings = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label htmlFor="userName">Username</Label>
+                  <div className="relative">
+                    <Input
+                      id="userName"
+                      {...register("userName", { 
+                        required: "Username is required",
+                        pattern: {
+                          value: /^[a-z0-9_]{3,20}$/,
+                          message: "Username must be 3-20 characters, lowercase, numbers, or underscores."
+                        }
+                      })}
+                      className="pl-11"
+                      placeholder="Your unique username"
+                    />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  </div>
+                  {errors.userName && (
+                    <p className="text-sm text-destructive">{errors.userName.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   <div className="relative">
                     <Input
@@ -204,7 +231,7 @@ const Settings = () => {
                       className="pl-11"
                       placeholder="Your full name"
                     />
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <PersonStanding className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   </div>
                   {errors.name && (
                     <p className="text-sm text-destructive">{errors.name.message}</p>

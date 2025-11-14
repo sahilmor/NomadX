@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { MapPin, Calendar, DollarSign, Globe, Mail, Building2, ArrowLeft, Edit } from "lucide-react";
+import { MapPin, Calendar, DollarSign, Globe, Mail, Building2, ArrowLeft, Edit, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -64,6 +64,7 @@ const Profile = () => {
 
   const displayName = profile?.name || user.user_metadata?.full_name || "Traveler";
   const displayEmail = profile?.email || user.email || "";
+  const displayUserName = profile?.userName || user?.user_metadata?.username || ""
   const displayImage = profile?.image || user.user_metadata?.avatar_url || null;
   const homeCity = profile?.homeCity || "Not set";
   const homeCurrency = profile?.homeCurrency || "INR";
@@ -131,8 +132,8 @@ const Profile = () => {
                   <div className="space-y-2">
                     <h2 className="text-2xl font-bold text-foreground">{displayName}</h2>
                     <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-                      <Mail className="w-4 h-4" />
-                      <span className="text-sm">{displayEmail}</span>
+                      <User className="w-4 h-4" />
+                      <span className="text-sm">{displayUserName}</span>
                     </div>
                   </div>
                   {interests.length > 0 && (
