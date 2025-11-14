@@ -6,6 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const ALLOWED_ORIGINS = [
   "http://localhost:8080",
   "http://localhost:3000",
+  "https://x-nomad.vercel.app/"
 ];
 
 declare const Deno: {
