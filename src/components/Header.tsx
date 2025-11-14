@@ -253,9 +253,11 @@ const Header = () => {
         <div className="flex justify-between items-center h-14 sm:h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-hero rounded-xl flex items-center justify-center">
-              <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
+            <img 
+              src="/logo-2025.png" 
+              alt="NomadX Logo" 
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain"
+            />
             <span className="text-lg sm:text-xl font-bold text-gradient-hero">
               NomadX
             </span>
