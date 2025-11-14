@@ -64,48 +64,63 @@ const ItineraryTab: React.FC<ItineraryTabProps> = ({ tripId, itinerary }) => {
   return (
     <>
       <Card className="border-0 bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>Trip Itinerary</CardTitle>
             <CardDescription>
-              Your day-by-day plan. (AI-Generated)
+              Your day-by-day plan.
             </CardDescription>
           </div>
           <Button
             size="sm"
-            className="btn-hero"
+            className="btn-hero w-full md:w-auto"
             onClick={() => handleOpenItineraryModal()}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Item
           </Button>
         </CardHeader>
+
         <CardContent className="space-y-6">
           {itinerary && itinerary.length > 0 ? (
             itinerary.map((item, index) => (
-              <div key={item.id} className="flex gap-4 group">
+              <div
+                key={item.id}
+                className="flex gap-4 group"
+              >
+                {/* Timeline icon + line */}
                 <div className="flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-lg bg-muted flex-shrink-0 flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-primary" />
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-lg bg-muted flex-shrink-0 flex items-center justify-center">
+                    <Clock className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                   </div>
                   {index < itinerary.length - 1 && (
                     <div className="w-px flex-1 bg-border" />
                   )}
                 </div>
-                <div className="pb-6 w-full flex justify-between items-start">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
+
+                {/* Content + actions */}
+                <div className="pb-6 w-full flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start">
+                  {/* Text content */}
+                  <div className="space-y-1">
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {format(new Date(item.day), "EEEE, MMM d")}
                     </p>
-                    <h4 className="font-semibold text-lg text-foreground">
+                    <h4 className="font-semibold text-base sm:text-lg text-foreground break-words">
                       {item.title}
                     </h4>
-                    <p className="text-muted-foreground">{item.notes}</p>
-                    <Badge variant="outline" className="mt-2">
+                    {item.notes && (
+                      <p className="text-sm text-muted-foreground break-words">
+                        {item.notes}
+                      </p>
+                    )}
+                    <Badge variant="outline" className="mt-1 sm:mt-2">
                       {item.kind}
                     </Badge>
                   </div>
-                  <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+                  {/* Action buttons */}
+                  <div className="flex space-x-2 justify-start mt-2 sm:mt-0
+                                  opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <Button
                       variant="ghost"
                       size="icon"

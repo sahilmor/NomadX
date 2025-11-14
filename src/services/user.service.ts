@@ -369,3 +369,34 @@ export const useAcceptFriendRequest = () => {
     }
   });
 };
+
+export const getUserAllTripsCount = async (userId: string) => {
+  // Trips where user is owner
+  const { data: ownedTrips, error: ownedError } = await supabase
+    .from("Trip")
+    .select("id")
+    .eq("ownerId", userId);
+
+  // Trips where user is a member (invited / added)
+  const { data: memberTrips, error: memberError } = await supabase
+    .from("TripMember")
+    .select("tripId")
+    .eq("userId", userId);
+
+  if (ownedError || memberError) {
+    return {
+      count: 0,
+      error: ownedError || memberError,
+    };
+  }
+
+  // Merge trip IDs and dedupe
+  const tripIds = new Set<string>();
+  (ownedTrips || []).forEach((t: any) => tripIds.add(t.id));
+  (memberTrips || []).forEach((m: any) => tripIds.add(m.tripId));
+
+  return {
+    count: tripIds.size,
+    error: null,
+  };
+};

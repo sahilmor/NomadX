@@ -7,7 +7,7 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { Tables, TablesInsert } from "@/integrations/supabase/types";
-import { Landmark, MapPin, Plus, Trash2 } from "lucide-react";
+import { Landmark, Plus, Trash2 } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-// Leaflet icon config (once in this module)
+// Leaflet icon config
 // @ts-ignore
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -76,7 +76,7 @@ const TripMap: React.FC<TripMapProps> = ({ pois, onMapClick }) => {
           center={mapCenter}
           zoom={10}
           scrollWheelZoom
-          className="h-[500px] w-full rounded-lg"
+          className="h-64 sm:h-80 md:h-[500px] w-full rounded-lg"
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -142,8 +142,6 @@ const PoiCardActions: React.FC<{ poi: Poi; tripId: string }> = ({
 
 // ---- POI CREATE DIALOG ----
 
-// inside the same file, or in a separate file if you extracted it
-
 interface PoiDialogProps {
   tripId: string;
   isOpen: boolean;
@@ -173,7 +171,6 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
 
   const isPending = createPoiMutation.isPending;
 
-  // When dialog opens, if we have initial coords from map click, use them
   useEffect(() => {
     if (isOpen) {
       if (initialLat != null && initialLng != null) {
@@ -290,6 +287,7 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="poi-name">Name</Label>
               <Input
@@ -302,8 +300,8 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
               />
             </div>
 
-            {/* Show coordinates, but you can keep them editable or readOnly */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Coordinates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="poi-lat">Latitude</Label>
                 <Input
@@ -326,6 +324,7 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
               </div>
             </div>
 
+            {/* Tags */}
             <div className="space-y-2">
               <Label htmlFor="poi-tags">Tags (comma-separated)</Label>
               <Input
@@ -337,6 +336,7 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
               />
             </div>
 
+            {/* Website */}
             <div className="space-y-2">
               <Label htmlFor="poi-website">Website (optional)</Label>
               <Input
@@ -348,7 +348,8 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Rating + Price */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="poi-rating">Rating (optional)</Label>
                 <Input
@@ -379,6 +380,7 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
               </div>
             </div>
 
+            {/* Notes */}
             <div className="space-y-2">
               <Label htmlFor="poi-notes">Notes (optional)</Label>
               <Textarea
@@ -391,16 +393,21 @@ const PoiDialog: React.FC<PoiDialogProps> = ({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => handleClose(false)}
               disabled={isPending}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" className="btn-hero" disabled={isPending}>
+            <Button
+              type="submit"
+              className="btn-hero w-full sm:w-auto"
+              disabled={isPending}
+            >
               {isPending ? "Saving..." : "Add POI"}
             </Button>
           </DialogFooter>
@@ -431,14 +438,16 @@ const PoisTab: React.FC<PoisTabProps> = ({ tripId, pois }) => {
       <TripMap pois={pois} onMapClick={handleMapClick} />
 
       <Card className="border-0 bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>Points of Interest</CardTitle>
-            <CardDescription>Click on the map to add a POI, or use the button.</CardDescription>
+            <CardDescription>
+              Click on the map to add a POI, or use the button.
+            </CardDescription>
           </div>
           <Button
             size="sm"
-            className="btn-hero"
+            className="btn-hero w-full md:w-auto"
             onClick={() => {
               setDraftLocation(null); // no preselected coords
               setIsPoiDialogOpen(true);
@@ -448,28 +457,36 @@ const PoisTab: React.FC<PoisTabProps> = ({ tripId, pois }) => {
             Add POI
           </Button>
         </CardHeader>
-        <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {pois && pois.length > 0 ? (
             pois.map((poi) => (
-              <Card key={poi.id} className="bg-muted/30">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <Card key={poi.id} className="bg-muted/30 h-full flex flex-col">
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 gap-2">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Landmark className="w-5 h-5 text-primary" />
-                    {poi.name}
+                    <span className="text-sm md:text-md lg:text-lg">{poi.name}</span>
                   </CardTitle>
                   <PoiCardActions poi={poi} tripId={tripId} />
                 </CardHeader>
                 <CardContent>
-                  {poi.tags?.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="mr-1">
-                      {tag}
-                    </Badge>
-                  ))}
+                  {poi.tags && poi.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {poi.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No tags added.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))
           ) : (
-            <p className="text-muted-foreground text-center">
+            <p className="text-muted-foreground text-center col-span-full">
               No points of interest found.
             </p>
           )}

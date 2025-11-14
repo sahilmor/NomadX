@@ -186,18 +186,18 @@ export const ItineraryItemDialog: React.FC<ItineraryItemDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="w-[95vw] sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">
             {mode === "create" ? "Add New Itinerary Item" : "Edit Item"}
           </DialogTitle>
-          <CardDescription>
+          <CardDescription className="text-sm sm:text-base">
             Adjust the details for this activity.
           </CardDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 py-2">
             {/* Title */}
             <div className="space-y-2">
               <Label htmlFor="title">Activity Title</Label>
@@ -212,7 +212,7 @@ export const ItineraryItemDialog: React.FC<ItineraryItemDialogProps> = ({
             </div>
 
             {/* Date + Time */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="day">Date</Label>
                 <Input
@@ -239,7 +239,7 @@ export const ItineraryItemDialog: React.FC<ItineraryItemDialogProps> = ({
             </div>
 
             {/* Category + Cost */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="kind">Category</Label>
                 <select
@@ -288,16 +288,21 @@ export const ItineraryItemDialog: React.FC<ItineraryItemDialogProps> = ({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={handleClose}
               disabled={isPending}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button type="submit" className="btn-hero" disabled={isPending}>
+            <Button
+              type="submit"
+              className="btn-hero w-full sm:w-auto"
+              disabled={isPending}
+            >
               {isPending
                 ? "Saving..."
                 : mode === "create"

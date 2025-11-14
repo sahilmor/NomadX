@@ -1,5 +1,3 @@
-// src/pages/TripDetail.tsx (or wherever you keep this)
-
 import { Link, useParams } from "react-router-dom";
 import {
   useTrip,
@@ -8,7 +6,14 @@ import {
   TripWithOwner,
 } from "@/services/trip.service";
 import { useTripItinerary, useTripPOIs } from "@/services/itinerary.service";
-import { ArrowLeft, Calendar, MapPin, Users, DollarSign, List } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  Users,
+  DollarSign,
+  List,
+} from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import {
@@ -30,8 +35,10 @@ const TripDetail = () => {
 
   if (!tripId) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        Error: No Trip ID provided.
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4">
+        <p className="text-center text-sm sm:text-base">
+          Error: No Trip ID provided.
+        </p>
       </div>
     );
   }
@@ -48,7 +55,11 @@ const TripDetail = () => {
     useTripMembers(tripId);
 
   const isLoading =
-    isAuthLoading || isLoadingTrip || isLoadingItinerary || isLoadingPOIs || isLoadingMembers;
+    isAuthLoading ||
+    isLoadingTrip ||
+    isLoadingItinerary ||
+    isLoadingPOIs ||
+    isLoadingMembers;
 
   if (isLoading) {
     return (
@@ -60,8 +71,8 @@ const TripDetail = () => {
 
   if (!trip) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
-        <p className="text-lg text-muted-foreground">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4">
+        <p className="text-center text-sm sm:text-base text-muted-foreground">
           Trip not found or you do not have permission to view it.
         </p>
       </div>
@@ -74,32 +85,35 @@ const TripDetail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="pt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
+      <main className="pt-20 sm:pt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
           <Link
             to="/dashboard"
-            className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors mb-4"
+            className="inline-flex items-center text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors mb-3 sm:mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Link>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-4xl font-black text-gradient-hero">
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gradient-hero break-words">
                 {trip.title}
               </h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-muted-foreground mt-2">
+              <div className="flex flex-col sm:flex-row flex-wrap sm:items-center gap-y-2 gap-x-4 text-xs sm:text-sm text-muted-foreground mt-1">
                 <div className="flex items-center space-x-1">
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="w-4 h-4 flex-shrink-0" />
                   <span>
                     {format(startDate, "MMM d, yyyy")} -{" "}
                     {format(endDate, "MMM d, yyyy")} ({duration} days)
                   </span>
                 </div>
                 <div className="flex items-center space-x-1">
-                  <DollarSign className="w-4 h-4" />
+                  <DollarSign className="w-4 h-4 flex-shrink-0" />
                   <span>
-                    Budget: {trip.currency} {trip.budgetCap}
+                    Budget: {trip.currency}{" "}
+                    {trip.budgetCap ? trip.budgetCap.toLocaleString() : "N/A"}
                   </span>
                 </div>
               </div>
@@ -107,38 +121,62 @@ const TripDetail = () => {
           </div>
         </div>
 
+        {/* Tabs */}
         <Tabs defaultValue="itinerary" className="w-full">
-          <TabsList className="mb-6 grid w-full grid-cols-2 md:grid-cols-4">
-            <TabsTrigger value="itinerary">
-              <List className="w-4 h-4 mr-2" />
-              Itinerary
+          {/* Scrollable tabs on small screens */}
+          <TabsList
+            className="
+              mb-6 
+              flex w-full  
+              overflow-x-hidden 
+              overflow-y-hidden
+              rounded-lg 
+              bg-muted 
+              p-1
+            "
+          >
+            <TabsTrigger
+              value="itinerary"
+              className="flex-1 min-w-[90px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
+            >
+              <List className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Plan</span>
             </TabsTrigger>
-            <TabsTrigger value="pois">
-              <MapPin className="w-4 h-4 mr-2" />
-              Map & POIs
+            <TabsTrigger
+              value="pois"
+              className="flex-1 min-w-[110px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
+            >
+              <MapPin className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Map &amp; POIs</span>
             </TabsTrigger>
-            <TabsTrigger value="budget">
-              <DollarSign className="w-4 h-4 mr-2" />
-              Budget
+            <TabsTrigger
+              value="budget"
+              className="flex-1 min-w-[90px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
+            >
+              <DollarSign className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Budget</span>
             </TabsTrigger>
-            <TabsTrigger value="members">
-              <Users className="w-4 h-4 mr-2" />
-              Members
+            <TabsTrigger
+              value="members"
+              className="flex-1 min-w-[100px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
+            >
+              <Users className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Members</span>
             </TabsTrigger>
           </TabsList>
 
           {/* ITINERARY TAB */}
-          <TabsContent value="itinerary">
+          <TabsContent value="itinerary" className="mt-0">
             <ItineraryTab tripId={tripId} itinerary={itinerary || []} />
           </TabsContent>
 
           {/* POIS TAB */}
-          <TabsContent value="pois">
+          <TabsContent value="pois" className="mt-0">
             <PoisTab tripId={tripId} pois={pois || []} />
           </TabsContent>
 
           {/* BUDGET TAB */}
-          <TabsContent value="budget">
+          <TabsContent value="budget" className="mt-0">
             <BudgetTab
               tripId={tripId}
               trip={trip}
@@ -148,7 +186,7 @@ const TripDetail = () => {
           </TabsContent>
 
           {/* MEMBERS TAB */}
-          <TabsContent value="members">
+          <TabsContent value="members" className="mt-0">
             <MembersTab
               tripId={tripId}
               trip={trip}

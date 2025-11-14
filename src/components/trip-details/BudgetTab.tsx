@@ -105,7 +105,7 @@ const ExpenseRowActions: React.FC<ExpenseRowActionsProps> = ({
 
   return (
     <>
-      <div className="flex justify-end space-x-2">
+      <div className="flex justify-end space-x-1 sm:space-x-2">
         <Button
           variant="ghost"
           size="icon"
@@ -201,7 +201,6 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
     if (!isOpen) return;
 
     if (editingExpense) {
-      // populate with existing data but we will NOT change title/day/kind in edit mode
       setFormData({
         title: editingExpense.title || "",
         day: normalizeDateForInput(editingExpense.day as unknown as string),
@@ -272,7 +271,6 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
     }
 
     if (mode === "create") {
-      // NEW EXPENSE: create a new ItineraryItem with cost
       const payload = {
         tripId,
         title: formData.title.trim(),
@@ -302,11 +300,9 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
         },
       });
     } else {
-      // EDIT EXISTING EXPENSE: ONLY update cost and notes
       const updates: TablesUpdate<"ItineraryItem"> = {
         cost: formData.cost,
         notes: formData.notes || null,
-        // DO NOT touch title/day/kind/startTime/endTime/poiId/tripId here
       };
 
       updateMutation.mutate(
@@ -338,15 +334,15 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[480px] w-[95vw]">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">
             {mode === "create" ? "Add Expense" : "Edit Expense"}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 py-2">
             {/* Title */}
             <div className="space-y-2">
               <Label htmlFor="expense-title">Title</Label>
@@ -361,7 +357,7 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
             </div>
 
             {/* Date + Category */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="expense-day">Date</Label>
                 <Input
@@ -382,7 +378,7 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
                   value={formData.kind}
                   onChange={handleChange}
                   disabled={isPending || readOnlyMeta}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {itemKinds.map((kind) => (
                     <option key={kind} value={kind}>
@@ -424,7 +420,7 @@ const ExpenseDialog: React.FC<ExpenseDialogProps> = ({
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-3">
             <Button
               type="button"
               variant="outline"
@@ -545,15 +541,15 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
       {/* Budget Overview */}
       <Card className="border-0 bg-card">
         <CardHeader>
-          <CardTitle>Budget Overview</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">Budget Overview</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 sm:space-y-5">
           <div className="space-y-1">
-            <div className="flex justify-between text-muted-foreground text-sm">
+            <div className="flex justify-between text-muted-foreground text-xs sm:text-sm">
               <span>Spent</span>
               <span>
                 {budgetData.totalSpent.toFixed(2)} /{" "}
@@ -562,17 +558,17 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
             </div>
             <Progress value={budgetData.budgetProgress} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-lg bg-muted p-4">
-              <p className="text-sm text-muted-foreground">Total Budget</p>
-              <p className="text-2xl font-bold">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="rounded-lg bg-muted p-3 sm:p-4">
+              <p className="text-xs sm:text-sm text-muted-foreground">Total Budget</p>
+              <p className="text-xl sm:text-2xl font-bold">
                 {trip.budgetCap?.toFixed(2)}
               </p>
             </div>
-            <div className="rounded-lg p-4 bg-muted">
-              <p className="text-sm text-muted-foreground">Remaining</p>
+            <div className="rounded-lg p-3 sm:p-4 bg-muted">
+              <p className="text-xs sm:text-sm text-muted-foreground">Remaining</p>
               <p
-                className={`text-2xl font-bold ${
+                className={`text-xl sm:text-2xl font-bold ${
                   budgetData.budgetRemaining < 0
                     ? "text-destructive"
                     : "text-foreground"
@@ -588,43 +584,49 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
       {/* By Category */}
       <Card className="border-0 bg-card">
         <CardHeader>
-          <CardTitle>Spending by Category</CardTitle>
+          <CardTitle className="text-lg sm:text-xl">Spending by Category</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-4">
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
             <div className="rounded-full bg-primary/10 p-2">
               <Home className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Stay</p>
-              <p className="font-bold">{budgetData.spentOnStay.toFixed(2)}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Stay</p>
+              <p className="font-bold text-sm sm:text-base">
+                {budgetData.spentOnStay.toFixed(2)}
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-4">
+          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
             <div className="rounded-full bg-coral/10 p-2">
               <Utensils className="w-5 h-5 text-coral" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Food</p>
-              <p className="font-bold">{budgetData.spentOnFood.toFixed(2)}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Food</p>
+              <p className="font-bold text-sm sm:text-base">
+                {budgetData.spentOnFood.toFixed(2)}
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-4">
+          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
             <div className="rounded-full bg-mustard/10 p-2">
               <Car className="w-5 h-5 text-mustard" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Transport</p>
-              <p className="font-bold">{budgetData.spentOnMove.toFixed(2)}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground">Transport</p>
+              <p className="font-bold text-sm sm:text-base">
+                {budgetData.spentOnMove.toFixed(2)}
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-4">
+          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
             <div className="rounded-full bg-success/10 p-2">
               <Ticket className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Activities</p>
-              <p className="font-bold">
+              <p className="text-xs sm:text-sm text-muted-foreground">Activities</p>
+              <p className="font-bold text-sm sm:text-base">
                 {budgetData.spentOnActivity.toFixed(2)}
               </p>
             </div>
@@ -634,53 +636,63 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
 
       {/* Expense Log */}
       <Card className="border-0 bg-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Expense Log</CardTitle>
-          <Button size="sm" className="btn-coral" onClick={handleOpenCreateExpense}>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <CardTitle className="text-lg sm:text-xl">Expense Log</CardTitle>
+          <Button
+            size="sm"
+            className="btn-coral self-start sm:self-auto"
+            onClick={handleOpenCreateExpense}
+          >
             <Plus className="w-4 h-4 mr-2" />
             Add Expense
           </Button>
         </CardHeader>
         <CardContent>
           {budgetData.expenseItems.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right w-32">Cost</TableHead>
-                  <TableHead className="w-20 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {budgetData.expenseItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      {format(new Date(item.day), "MMM d")}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {item.title}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{item.kind}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {item.cost?.toFixed(2)} {trip.currency}
-                    </TableCell>
-                    <TableCell>
-                      <ExpenseRowActions
-                        expense={item}
-                        tripId={tripId}
-                        onEdit={handleEditExpense}
-                      />
-                    </TableCell>
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs sm:text-sm">Date</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Item</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Category</TableHead>
+                    <TableHead className="text-right w-32 text-xs sm:text-sm">
+                      Cost
+                    </TableHead>
+                    <TableHead className="w-20 text-right text-xs sm:text-sm">
+                      Actions
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {budgetData.expenseItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="text-xs sm:text-sm">
+                        {format(new Date(item.day), "MMM d")}
+                      </TableCell>
+                      <TableCell className="font-medium text-xs sm:text-sm">
+                        {item.title}
+                      </TableCell>
+                      <TableCell className="text-xs sm:text-sm">
+                        <Badge variant="outline">{item.kind}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-xs sm:text-sm">
+                        {item.cost?.toFixed(2)} {trip.currency}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <ExpenseRowActions
+                          expense={item}
+                          tripId={tripId}
+                          onEdit={handleEditExpense}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <p className="text-muted-foreground text-center">
+            <p className="text-muted-foreground text-center text-sm sm:text-base">
               No expenses logged in your itinerary yet.
             </p>
           )}
