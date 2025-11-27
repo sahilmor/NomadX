@@ -18,6 +18,7 @@ import MyTrips from "./pages/MyTrips";
 import Inspirations from "./pages/Inspiration";
 import InspirationDetail from "./pages/InspirationDetail";
 import Friends from "./pages/Friends";
+import Footer from "./components/Footer";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const MainLayout = () => (
     <main className="pt-16"> {/* Padding to avoid content hiding behind fixed header */}
       <Outlet />
     </main>
+    <Footer />
   </>
 );
 
