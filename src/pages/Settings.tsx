@@ -95,7 +95,7 @@ const Settings = () => {
         if (result.data) {
           setProfile(result.data);
           setValue("name", result.data.name || initialName || "");
-          setValue("userName", result.data.userName || "");
+          setValue("userName", result.data.username || "");
           setValue("email", result.data.email || user.email || "");
           setValue("homeCity", result.data.homeCity || "");
           setValue("homeCurrency", result.data.homeCurrency || "INR");

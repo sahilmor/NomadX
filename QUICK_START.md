@@ -83,9 +83,9 @@ CREATE POLICY "Users can update own profile"
 
 ### Step 3: Create `.env` file (if not exists)
 ```env
-VITE_SUPABASE_URL=https://mnsqjfwgpmyiepruifwr.supabase.co
+VITE_SUPABASE_URL=https://dyekefcanonoatowbeyl.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_BASE_URL=https://mnsqjfwgpmyiepruifwr.supabase.co/functions/v1
+VITE_API_BASE_URL=https://dyekefcanonoatowbeyl.supabase.co/functions/v1
 ```
 
 ## Testing

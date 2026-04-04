@@ -3,16 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 // Get environment variables (must be prefixed with VITE_ for Vite to expose them)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mnsqjfwgpmyiepruifwr.supabase.co';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dyekefcanonoatowbeyl.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Validate environment variables
 if (!SUPABASE_PUBLISHABLE_KEY) {
   const errorMsg = 'Missing VITE_SUPABASE_ANON_KEY environment variable.\n' +
     'Please create a .env file in the root directory with:\n' +
-    'VITE_SUPABASE_URL=https://mnsqjfwgpmyiepruifwr.supabase.co\n' +
+    'VITE_SUPABASE_URL=https://dyekefcanonoatowbeyl.supabase.co\n' +
     'VITE_SUPABASE_ANON_KEY=your-anon-key-here\n\n' +
-    'Get your keys from: https://app.supabase.com/project/mnsqjfwgpmyiepruifwr/settings/api\n' +
+    'Get your keys from: https://app.supabase.com/project/dyekefcanonoatowbeyl/settings/api\n' +
     'NOTE: The .env file should NOT use JavaScript syntax (no const, no quotes, no semicolons).\n' +
     'It should be: VITE_SUPABASE_ANON_KEY=eyJhbGci... (not: const SUPABASE_PUBLISHABLE_KEY = "...")';
   console.error(errorMsg);

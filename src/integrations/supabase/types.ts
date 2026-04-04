@@ -605,7 +605,7 @@ export type Database = {
           interests: string[] | null
           name: string | null
           role: Database["public"]["Enums"]["UserRole"]
-          userName: string | null
+          username: string | null
         }
         Insert: {
           email?: string | null
@@ -617,7 +617,7 @@ export type Database = {
           interests?: string[] | null
           name?: string | null
           role?: Database["public"]["Enums"]["UserRole"]
-          userName?: string | null
+          username?: string | null
         }
         Update: {
           email?: string | null
@@ -629,7 +629,7 @@ export type Database = {
           interests?: string[] | null
           name?: string | null
           role?: Database["public"]["Enums"]["UserRole"]
-          userName?: string | null
+          username?: string | null
         }
         Relationships: []
       }

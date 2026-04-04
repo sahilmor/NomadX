@@ -2,7 +2,7 @@
 echo "🔍 Checking Edge Function deployment status..."
 echo ""
 echo "To check if the Edge Function is deployed:"
-echo "1. Go to: https://app.supabase.com/project/mnsqjfwgpmyiepruifwr/functions"
+echo "1. Go to: https://app.supabase.com/project/dyekefcanonoatowbeyl/functions"
 echo "2. Look for 'generate-trip-plan' function"
 echo ""
 echo "To deploy the function:"

@@ -35,7 +35,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 type SearchUser = Pick<
   Tables<"User">,
-  "id" | "userName" | "name" | "image"
+  "id" | "username" | "name" | "image"
 >;
 type PendingRequest = {
   requestId: string;
@@ -60,15 +60,15 @@ const UserListCard: React.FC<UserListCardProps> = ({
       <Avatar className="h-12 w-12">
         <AvatarImage src={user.image ?? undefined} />
         <AvatarFallback>
-          {(user.name || user.userName)?.[0]?.toUpperCase() || "U"}
+          {(user.name || user.username)?.[0]?.toUpperCase() || "U"}
         </AvatarFallback>
       </Avatar>
       <div className="flex flex-col items-start max-w-[11rem] sm:max-w-none">
         <span className="font-medium text-sm sm:text-base text-left break-words">
-          {user.name || user.userName}
+          {user.name || user.username}
         </span>
         <span className="text-xs text-muted-foreground break-all">
-          @{user.userName}
+          @{user.username}
         </span>
       </div>
     </div>
@@ -105,16 +105,16 @@ const PendingRequestCard: React.FC<PendingRequestCardProps> = ({
       <Avatar className="h-12 w-12">
         <AvatarImage src={request.sender.image ?? undefined} />
         <AvatarFallback>
-          {(request.sender.name || request.sender.userName)?.[0]?.toUpperCase() ||
+          {(request.sender.name || request.sender.username)?.[0]?.toUpperCase() ||
             "U"}
         </AvatarFallback>
       </Avatar>
       <div className="flex flex-col items-start max-w-[11rem] sm:max-w-none">
         <span className="font-medium text-sm sm:text-base text-left break-words">
-          {request.sender.name || request.sender.userName}
+          {request.sender.name || request.sender.username}
         </span>
         <span className="text-xs text-muted-foreground break-all">
-          @{request.sender.userName}
+          @{request.sender.username}
         </span>
       </div>
     </div>
@@ -160,8 +160,12 @@ const Friends = () => {
 
     const search = async () => {
       if (searchQuery.trim().length < 2) {
-        setSearchResults([]);
-        setIsSearching(false);
+        setIsSearching(true);
+  const { data, error } = await searchUsersByUsername(searchQuery, user.id);
+  console.log("Search results data:", data);
+  console.log("Search error:", error);      
+  setSearchResults(data || []);
+  setIsSearching(false);
         return;
       }
 

@@ -10,11 +10,11 @@ type TripMember = Tables<'TripMember'>;
 type TripMemberInsert = TablesInsert<'TripMember'>;
 
 export type TripWithOwner = Trip & {
-  User: Pick<UserProfile, 'id' | 'name' | 'userName' | 'image'> | null;
+  User: Pick<UserProfile, 'id' | 'name' | 'username' | 'image'> | null;
 };
 
 export type TripMemberWithUser = TripMember & {
-  User: Pick<UserProfile, 'id' | 'name' | 'image' | 'userName'> | null;
+  User: Pick<UserProfile, 'id' | 'name' | 'image' | 'username'> | null;
 };
 
 const calculateDays = (startDate: string, endDate: string): number => {
@@ -45,14 +45,17 @@ export const generateTripPlan = async (
   }
 ) => {
   try {
+    
     const session = await supabase.auth.getSession();
+    if (!session) throw new Error("No session");
     const accessToken = session.data.session?.access_token;
+    console.log("TOKEN:", accessToken);
     
     if (!accessToken) {
       throw new Error('No active session');
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mnsqjfwgpmyiepruifwr.supabase.co';
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dyekefcanonoatowbeyl.supabase.co';
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || `${supabaseUrl}/functions/v1`;
     
     console.log('Calling AI plan generation:', {
@@ -66,6 +69,7 @@ export const generateTripPlan = async (
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({
         tripId,
@@ -249,7 +253,7 @@ export const getTripById = async (tripId: string) => {
         User (
           id,
           name,
-          userName,
+          username,
           image
         )
       `)
@@ -330,7 +334,7 @@ export const getTripMembers = async (tripId: string) => {
           id,
           name,
           image,
-          userName
+          username
         )
       `)
       .eq('tripId', tripId);

@@ -13,7 +13,7 @@ npm install -g supabase
 supabase login
 
 # Link your project (get project-ref from Supabase dashboard URL)
-supabase link --project-ref mnsqjfwgpmyiepruifwr
+supabase link --project-ref dyekefcanonoatowbeyl
 ```
 
 ## Step 3: Get Gemini API Key

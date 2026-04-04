@@ -33,7 +33,7 @@ export const ensureUserExists = async (details: {
       id: details.userId,
       email: details.email,
       name: displayName || null,
-      userName: displayUserName,
+      username: displayUserName,
       homeCurrency: 'INR',
       role: 'USER',
       emailVerified: null,
@@ -90,18 +90,27 @@ export const getOrCreateUserProfile = async (userId: string, email: string, name
   return await ensureUserExists({ userId, email, name });
 };
 
-export const updateUserProfile = async (userId: string, updates: UserProfileUpdate) => {
+export const updateUserProfile = async (userId: string, updates: any) => {
   try {
     const authUser = (await supabase.auth.getUser()).data.user;
     if (!authUser) {
       return { data: null, error: { message: 'User not authenticated' } };
     }
 
+    // Ensure the profile exists before updating
     await getOrCreateUserProfile(userId, authUser.email || '', updates.name || undefined);
+
+    // Explicitly map properties to lowercase 'username' 
+    // to prevent 'userName' from leaking into the query
+    const cleanUpdates: any = { ...updates };
+    if (cleanUpdates.userName) {
+      cleanUpdates.username = cleanUpdates.userName;
+      delete cleanUpdates.userName;
+    }
 
     const { data, error } = await supabase
       .from('User')
-      .update(updates)
+      .update(cleanUpdates)
       .eq('id', userId)
       .select()
       .single();
@@ -160,11 +169,13 @@ export const searchUsersByUsername = async (searchText: string, currentUserId: s
     return { data: [], error: null };
   }
 
+  const cleanSearch = searchText.trim();
+
   try {
     const { data, error } = await supabase
       .from('User')
-      .select('id, userName, name, image')
-      .ilike('userName', `%${searchText}%`)
+      .select('id, username, name, image')
+      .ilike('username', `%${cleanSearch}%`)
       .neq('id', currentUserId)
       .limit(5);
 
@@ -173,7 +184,7 @@ export const searchUsersByUsername = async (searchText: string, currentUserId: s
       return { data: null, error };
     }
 
-    return { data: data as Pick<UserProfile, 'id' | 'userName' | 'name' | 'image'>[], error: null };
+    return { data: data as Pick<UserProfile, 'id' | 'username' | 'name' | 'image'>[], error: null };
   } catch (error: any) {
     console.error('Error in searchUsersByUsername:', error);
     return { data: null, error };
@@ -182,30 +193,34 @@ export const searchUsersByUsername = async (searchText: string, currentUserId: s
 
 export const getFriends = async (userId: string) => {
   try {
+    // 1. Fetch friends where current user is the requester
     const { data: sent, error: sentError } = await supabase
       .from('friends')
       .select(`
         friend_id,
-        User:User!friend_id ( id, userName, name, image )
+        User:User!friend_id ( id, username, name, image )
       `)
       .eq('user_id', userId)
       .eq('status', 'accepted'); 
 
     if (sentError) throw sentError;
 
+    // 2. Fetch friends where current user is the recipient
     const { data: received, error: receivedError } = await supabase
       .from('friends')
       .select(`
         user_id,
-        User:User!user_id ( id, userName, name, image )
+        User:User!user_id ( id, username, name, image )
       `)
       .eq('friend_id', userId)
       .eq('status', 'accepted');
 
     if (receivedError) throw receivedError;
 
-    const sentFriends = sent.map(f => f.User).filter(Boolean) as UserProfile[];
-    const receivedFriends = received.map(f => f.User).filter(Boolean) as UserProfile[];
+    // 3. Map and cast the data
+    // The cast will now succeed because the query returns valid User data instead of an error string
+    const sentFriends = (sent?.map(f => f.User).filter(Boolean) || []) as UserProfile[];
+    const receivedFriends = (received?.map(f => f.User).filter(Boolean) || []) as UserProfile[];
     
     const allFriends = new Map<string, UserProfile>();
     sentFriends.forEach(f => allFriends.set(f.id, f));
@@ -283,7 +298,7 @@ export const getPendingRequests = async (userId: string) => {
         user_id,
         User:User!user_id (
           id,
-          userName,
+          username,
           name,
           image
         )
@@ -293,7 +308,7 @@ export const getPendingRequests = async (userId: string) => {
 
     if (error) throw error;
 
-    const requests = data.map(req => ({
+    const requests = (data || []).map(req => ({
       requestId: req.id,
       sender: req.User as UserProfile
     })).filter(r => r.sender);

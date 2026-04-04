@@ -8,7 +8,7 @@ type NotificationInsert = TablesInsert<"notifications">;
 
 // Define the shape of our notification with the joined actor profile
 export type NotificationWithActor = Tables<'notifications'> & {
-  actor: Pick<Tables<'User'>, 'id' | 'userName' | 'name'> | null;
+  actor: Pick<Tables<'User'>, 'id' | 'username' | 'name'> | null;
   // We can add trip data here later if needed
   // trip: Pick<Tables<'Trip'>, 'id' | 'title'> | null;
 };
@@ -27,7 +27,7 @@ export const getNotifications = async (userId: string) => {
         *,
         actor:User!actor_id (
           id,
-          userName,
+          username,
           name
         )
       `)

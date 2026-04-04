@@ -32,7 +32,7 @@ import {
 
 const getNotificationText = (notification: NotificationWithActor): string => {
   const actorName =
-    notification.actor?.name || notification.actor?.userName || "Someone";
+    notification.actor?.name || notification.actor?.username || "Someone";
 
   switch (notification.type) {
     case "FRIEND_ADDED":

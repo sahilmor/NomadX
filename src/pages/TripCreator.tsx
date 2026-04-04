@@ -37,7 +37,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Tables } from "@/integrations/supabase/types";
 
-type SearchUser = Pick<Tables<"User">, "id" | "userName" | "name" | "image">;
+type SearchUser = Pick<Tables<"User">, "id" | "username" | "name" | "image">;
 
 const TripCreator = () => {
   const { user } = useAuth();
@@ -62,7 +62,7 @@ const TripCreator = () => {
     budget: "",
     travelers: 1,
     description: "",
-    invitedFriends: [] as { id: string; userName: string | null }[],
+    invitedFriends: [] as { id: string; username: string | null }[],
   });
 
   useEffect(() => {
@@ -123,7 +123,7 @@ const TripCreator = () => {
         ...prev,
         invitedFriends: [
           ...prev.invitedFriends,
-          { id: friend.id, userName: friend.userName },
+          { id: friend.id, username: friend.username },
         ],
         travelers: prev.travelers + 1,
       }));
@@ -443,15 +443,15 @@ const TripCreator = () => {
                         <Avatar className="h-8 w-8 mr-2">
                           <AvatarImage
                             src={friend.image || undefined}
-                            alt={friend.userName || "User"}
+                            alt={friend.username || "User"}
                           />
                           <AvatarFallback>
-                            {friend.userName?.[0]?.toUpperCase()}
+                            {friend.username?.[0]?.toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="text-left">
                           <p className="font-medium text-sm sm:text-base">
-                            {friend.userName}
+                            {friend.username}
                           </p>
                           {friend.name && (
                             <p className="text-xs text-muted-foreground">
@@ -482,7 +482,7 @@ const TripCreator = () => {
                       variant="secondary"
                       className="flex items-center gap-1 pl-3 pr-1 py-1 text-xs sm:text-sm rounded-md"
                     >
-                      <span>{friend.userName}</span>
+                      <span>{friend.username}</span>
                       <Button
                         type="button"
                         variant="ghost"
@@ -492,7 +492,7 @@ const TripCreator = () => {
                       >
                         <X className="h-3 w-3" />
                         <span className="sr-only">
-                          Remove {friend.userName}
+                          Remove {friend.username}
                         </span>
                       </Button>
                     </Badge>

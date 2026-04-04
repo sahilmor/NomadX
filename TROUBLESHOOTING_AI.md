@@ -22,7 +22,7 @@ Open your browser's Developer Console (F12) and look for error messages when cre
 
 ### Step 2: Verify Edge Function is Deployed
 
-1. Go to [Supabase Dashboard](https://app.supabase.com/project/mnsqjfwgpmyiepruifwr/functions)
+1. Go to [Supabase Dashboard](https://app.supabase.com/project/dyekefcanonoatowbeyl/functions)
 2. Check if `generate-trip-plan` function exists
 3. If it doesn't exist, deploy it:
 
@@ -31,7 +31,7 @@ Open your browser's Developer Console (F12) and look for error messages when cre
 supabase login
 
 # Link your project (if not already linked)
-supabase link --project-ref mnsqjfwgpmyiepruifwr
+supabase link --project-ref dyekefcanonoatowbeyl
 
 # Deploy the function
 supabase functions deploy generate-trip-plan
@@ -68,7 +68,7 @@ After deploying and setting the secret, test the function:
 
 If the function is deployed but still failing:
 
-1. Go to [Supabase Dashboard → Edge Functions → generate-trip-plan](https://app.supabase.com/project/mnsqjfwgpmyiepruifwr/functions/generate-trip-plan)
+1. Go to [Supabase Dashboard → Edge Functions → generate-trip-plan](https://app.supabase.com/project/dyekefcanonoatowbeyl/functions/generate-trip-plan)
 2. Click on "Logs" tab
 3. Look for error messages
 

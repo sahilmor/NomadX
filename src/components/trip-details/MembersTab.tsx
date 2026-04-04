@@ -44,7 +44,7 @@ import { Tables } from "@/integrations/supabase/types";
 import { searchUsersByUsername } from "@/services/user.service";
 import { createTripInviteNotification } from "@/services/notification.service";
 
-type SearchUser = Pick<Tables<"User">, "id" | "userName" | "name" | "image">;
+type SearchUser = Pick<Tables<"User">, "id" | "username" | "name" | "image">;
 
 interface MembersTabProps {
     tripId: string;
@@ -72,15 +72,15 @@ const MemberSearchResultCard: React.FC<MemberSearchResultCardProps> = ({
             <Avatar className="h-10 w-10">
                 <AvatarImage src={user.image ?? undefined} />
                 <AvatarFallback>
-                    {(user.name || user.userName)?.[0]?.toUpperCase() || "U"}
+                    {(user.name || user.username)?.[0]?.toUpperCase() || "U"}
                 </AvatarFallback>
             </Avatar>
             <div className="flex flex-col items-start">
                 <span className="font-medium text-sm text-left break-words">
-                    {user.name || user.userName}
+                    {user.name || user.username}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                    @{user.userName}
+                    @{user.username}
                 </span>
             </div>
         </div>
@@ -147,7 +147,7 @@ const MembersTab: React.FC<MembersTabProps> = ({
                 onSuccess: () => {
                     toast({
                         title: "Member Removed",
-                        description: `${memberToRemove.User?.name || memberToRemove.User?.userName
+                        description: `${memberToRemove.User?.name || memberToRemove.User?.username
                             } has been removed from the trip.`,
                     });
                     setIsConfirmOpen(false);
@@ -292,17 +292,17 @@ const MembersTab: React.FC<MembersTabProps> = ({
                                                 <AvatarFallback>
                                                     {(
                                                         member.User?.name ||
-                                                        member.User?.userName ||
+                                                        member.User?.username ||
                                                         "U"
                                                     )[0]?.toUpperCase()}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="flex flex-col items-start">
                                                 <span className="font-medium text-sm text-left break-words">
-                                                    {member.User?.name || member.User?.userName}
+                                                    {member.User?.name || member.User?.username}
                                                 </span>
                                                 <span className="font-medium text-xs text-left text-muted-foreground break-words">
-                                                    @{member.User?.userName || ""}
+                                                    @{member.User?.username || ""}
                                                 </span>
                                             </div>
                                         </div>
@@ -347,7 +347,7 @@ const MembersTab: React.FC<MembersTabProps> = ({
                         <AlertDialogDescription>
                             {memberToRemove
                                 ? `This will remove ${memberToRemove.User?.name ||
-                                memberToRemove.User?.userName ||
+                                memberToRemove.User?.username ||
                                 "this user"
                                 } from the trip.`
                                 : "This will remove the selected member from the trip."}

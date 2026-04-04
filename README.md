@@ -96,7 +96,7 @@ The AI trip generation runs on a Supabase Edge Function.
 2.  **Login & Link Project:**
     ```bash
     supabase login
-    supabase link --project-ref mnsqjfwgpmyiepruifwr
+    supabase link --project-ref dyekefcanonoatowbeyl
     ```
 3.  **Get Gemini API Key:** Obtain your key from [Google AI Studio](https://makersuite.google.com/app/apikey).
 4.  **Set Secret:**
