@@ -22,8 +22,14 @@ import {
   List,
   BedDouble,
   BusFront,
+  Share2,
+  Link2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
+import { useMutation } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import {
   Tabs,
@@ -32,6 +38,17 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 import ItineraryTab from "@/components/trip-details/ItineraryTab";
 import PoisTab from "@/components/trip-details/PoisTab";
@@ -78,6 +95,32 @@ const TripDetail = () => {
 
   const setStayNights = useSetStayNights();
   const toggleTransport = useToggleTransport();
+
+  // --- Share link state (phase 3) ---
+  const queryClient = useQueryClient();
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const shareMutation = useMutation({
+    mutationFn: async (updates: {
+      visibility: string;
+      publicId?: string;
+    }) => {
+      const { error } = await supabase
+        .from("Trip")
+        .update(updates)
+        .eq("id", tripId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trip", tripId] });
+      queryClient.invalidateQueries({ queryKey: ["userTrips"] });
+      queryClient.invalidateQueries({ queryKey: ["upcomingTrips"] });
+    },
+  });
+  const linkEnabled = trip?.visibility === "LINK" || trip?.visibility === "PUBLIC";
+  const shareLink = trip?.publicId
+    ? `${window.location.origin}/t/${trip.publicId}`
+    : null;
 
   const isLoading =
     isAuthLoading ||
@@ -145,8 +188,106 @@ const TripDetail = () => {
                 </div>
               </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start md:self-auto"
+              onClick={() => setShareOpen(true)}
+            >
+              <Share2 className="w-4 h-4 mr-2" />
+              Share
+              {linkEnabled && (
+                <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-success inline-block" />
+              )}
+            </Button>
           </div>
         </div>
+
+        {/* Share dialog */}
+        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+          <DialogContent className="sm:max-w-[460px]">
+            <DialogHeader>
+              <DialogTitle>Share this trip</DialogTitle>
+              <DialogDescription>
+                Anyone with the link can view a read-only version of the plan.
+                Costs and member details are never shared.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-1">
+              <div className="flex items-center justify-between rounded-lg bg-muted/30 p-3">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">Anyone with the link</p>
+                  <p className="text-xs text-muted-foreground">
+                    {linkEnabled
+                      ? "Sharing is on — turn off to revoke the link."
+                      : "Turn on to generate a shareable link."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={linkEnabled}
+                  disabled={shareMutation.isPending}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                    linkEnabled ? "bg-primary" : "bg-muted-foreground/30"
+                  }`}
+                  onClick={() => {
+                    setCopied(false);
+                    shareMutation.mutate(
+                      linkEnabled
+                        ? { visibility: "PRIVATE" }
+                        : {
+                            visibility: "LINK",
+                            publicId: trip.publicId || crypto.randomUUID(),
+                          }
+                    );
+                  }}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+                      linkEnabled ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {linkEnabled && shareLink && (
+                <div className="space-y-2">
+                  <Label className="text-xs">Share link</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={shareLink}
+                      className="text-xs"
+                      onFocus={(e) => e.currentTarget.select()}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="btn-coral flex-shrink-0"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(shareLink);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        } catch {
+                          // clipboard blocked — the input is selectable above
+                        }
+                      }}
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                      {copied ? "Copied" : "Copy"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Tabs */}
         <Tabs defaultValue="itinerary" className="w-full">

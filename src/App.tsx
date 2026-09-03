@@ -18,6 +18,7 @@ import MyTrips from "./pages/MyTrips";
 import Inspirations from "./pages/Inspiration";
 import InspirationDetail from "./pages/InspirationDetail";
 import Friends from "./pages/Friends";
+import PublicTrip from "./pages/PublicTrip";
 import Footer from "./components/Footer";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,9 @@ const App = () => (
                 <Route path="/my-trips/:tripId" element={<TripDetail />} />
                 <Route path="/friends" element={<Friends />} />
               </Route>
+
+              {/* Public share links — no auth, but still branded */}
+              <Route path="/t/:publicId" element={<PublicTrip />} />
             </Route>
 
             {/* Auth routes can have their own layout (without the main header) */}
