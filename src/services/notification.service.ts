@@ -129,6 +129,33 @@ export const useMarkNotificationAsRead = () => {
   });
 };
 
+export const createFriendRequestNotification = async (params: {
+  recipientUserId: string; // the person receiving the request
+  actorUserId: string;     // the sender
+}) => {
+  const payload: NotificationInsert = {
+    id: crypto.randomUUID(),
+    user_id: params.recipientUserId,
+    actor_id: params.actorUserId,
+    type: "FRIEND_ADDED",
+    is_read: false,
+    related_entity_id: params.actorUserId, // navigate to sender's profile
+  };
+
+  const { data, error } = await supabase
+    .from("notifications")
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating friend request notification:", error);
+    return { data: null, error };
+  }
+
+  return { data, error: null };
+};
+
 export const createTripInviteNotification = async (params: {
   recipientUserId: string; // who receives the notification
   actorUserId: string;     // who triggered it (current user)

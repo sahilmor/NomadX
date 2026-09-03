@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import { createFriendRequestNotification } from "@/services/notification.service";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -184,6 +185,10 @@ const Friends = () => {
       { userId: user.id, friendId: friendId },
       {
         onSuccess: () => {
+          void createFriendRequestNotification({
+            recipientUserId: friendId,
+            actorUserId: user.id,
+          });
           toast({
             title: "Friend Request Sent!",
             description: "They will be added to your list when they accept.",

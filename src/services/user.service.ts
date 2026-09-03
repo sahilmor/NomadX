@@ -165,19 +165,23 @@ export const getUserTripsCount = async (userId: string) => {
 };
 
 export const searchUsersByUsername = async (searchText: string, currentUserId: string) => {
-  if (!searchText || searchText.trim().length < 2) {
+  const cleanSearch = searchText.trim();
+  if (!cleanSearch || cleanSearch.length < 2) {
     return { data: [], error: null };
   }
 
-  const cleanSearch = searchText.trim();
+  // Commas/parens would break the .or() filter — strip them.
+  const safe = cleanSearch.replace(/[,()]/g, "");
 
   try {
     const { data, error } = await supabase
       .from('User')
       .select('id, username, name, image')
-      .ilike('username', `%${cleanSearch}%`)
+      .or(
+        `username.ilike.%${safe}%,name.ilike.%${safe}%,email.ilike.%${safe}%`
+      )
       .neq('id', currentUserId)
-      .limit(5);
+      .limit(8);
 
     if (error) {
       console.error('Error searching users:', error);

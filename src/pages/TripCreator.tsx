@@ -383,7 +383,9 @@ const TripCreator = () => {
                 Who&apos;s joining the adventure?
               </h2>
               <p className="text-sm sm:text-base text-muted-foreground">
-                Invite friends to collaborate on your plan.
+                Set the headcount below — friends without accounts count too.
+                Inviting app friends is optional; you can do it later from the
+                trip&apos;s Members tab.
               </p>
             </div>
 
@@ -407,7 +409,7 @@ const TripCreator = () => {
                 htmlFor="invite"
                 className="text-sm font-medium"
               >
-                Invite Friends (by Username)
+                Invite Friends (optional — by name, username or email)
               </Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
