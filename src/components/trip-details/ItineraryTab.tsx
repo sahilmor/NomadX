@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
-import { Clock, Pencil, Trash2, Plus } from "lucide-react";
+import { Clock, Pencil, Trash2, Plus, List, Map } from "lucide-react";
 import { Tables } from "@/integrations/supabase/types";
 import {
   Card,
@@ -16,20 +16,27 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useDeleteItineraryItem } from "@/services/itinerary.service";
 import { ItineraryItemDialog } from "@/components/trip-details/ItineraryItemDialog";
+import DayMapView from "@/components/trip-details/DayMapView";
 
 type ItineraryItem = Tables<"ItineraryItem">;
 
 interface ItineraryTabProps {
   tripId: string;
   itinerary: ItineraryItem[];
+  pois: Tables<"Poi">[];
 }
 
-const ItineraryTab: React.FC<ItineraryTabProps> = ({ tripId, itinerary }) => {
+const ItineraryTab: React.FC<ItineraryTabProps> = ({
+  tripId,
+  itinerary,
+  pois,
+}) => {
   const { toast } = useToast();
   const deleteItineraryMutation = useDeleteItineraryItem(tripId);
 
   const [isItineraryModalOpen, setIsItineraryModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItineraryItem | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
   const handleOpenItineraryModal = (item: ItineraryItem | null = null) => {
     setEditingItem(item);
@@ -71,18 +78,43 @@ const ItineraryTab: React.FC<ItineraryTabProps> = ({ tripId, itinerary }) => {
               Your day-by-day plan.
             </CardDescription>
           </div>
-          <Button
-            size="sm"
-            className="btn-hero w-full md:w-auto"
-            onClick={() => handleOpenItineraryModal()}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Item
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <div className="flex rounded-lg bg-muted p-1 w-full sm:w-auto">
+              <Button
+                size="sm"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                className={`flex-1 sm:flex-none ${viewMode === "list" ? "" : "text-muted-foreground"}`}
+                onClick={() => setViewMode("list")}
+              >
+                <List className="w-4 h-4 mr-1" />
+                List
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "map" ? "default" : "ghost"}
+                className={`flex-1 sm:flex-none ${viewMode === "map" ? "" : "text-muted-foreground"}`}
+                onClick={() => setViewMode("map")}
+              >
+                <Map className="w-4 h-4 mr-1" />
+                Map
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              className="btn-hero w-full md:w-auto"
+              onClick={() => handleOpenItineraryModal()}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Item
+            </Button>
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {itinerary && itinerary.length > 0 ? (
+          {viewMode === "map" ? (
+            <DayMapView tripId={tripId} itinerary={itinerary || []} pois={pois} />
+          ) : (
+          itinerary && itinerary.length > 0 ? (
             itinerary.map((item, index) => (
               <div
                 key={item.id}
@@ -146,6 +178,7 @@ const ItineraryTab: React.FC<ItineraryTabProps> = ({ tripId, itinerary }) => {
             <p className="text-muted-foreground text-center">
               No itinerary items found for this trip.
             </p>
+          )
           )}
         </CardContent>
       </Card>

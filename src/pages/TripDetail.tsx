@@ -349,7 +349,11 @@ const TripDetail = () => {
 
           {/* ITINERARY TAB */}
           <TabsContent value="itinerary" className="mt-0">
-            <ItineraryTab tripId={tripId} itinerary={itinerary || []} />
+            <ItineraryTab
+              tripId={tripId}
+              itinerary={itinerary || []}
+              pois={pois || []}
+            />
           </TabsContent>
 
           {/* POIS TAB */}
