@@ -183,3 +183,81 @@ export const createTripInviteNotification = async (params: {
 
   return { data, error: null };
 };
+/**
+ * Fetches ALL notifications for a user (up to 100), newest first.
+ * Used by the full /notifications page, unlike the 10-item bell dropdown.
+ */
+export const getAllNotifications = async (userId: string) => {
+  if (!userId) return { data: [], error: null };
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select(`
+        *,
+        actor:User!actor_id (
+          id,
+          username,
+          name
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    return { data: data as NotificationWithActor[], error: null };
+  } catch (error: any) {
+    console.error('Error fetching all notifications:', error);
+    return { data: null, error };
+  }
+};
+
+/**
+ * Marks every unread notification for the user as read in one update.
+ */
+export const markAllNotificationsAsRead = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false)
+      .select('id');
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error: any) {
+    console.error('Error marking all notifications as read:', error);
+    return { data: null, error };
+  }
+};
+
+export const useMarkAllNotificationsAsRead = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await markAllNotificationsAsRead(user?.id || "");
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', user?.id] });
+    },
+  });
+};
+
+export const useAllNotifications = (userId: string) => {
+  return useQuery({
+    queryKey: ['notifications', 'all', userId],
+    queryFn: async () => {
+      const { data, error } = await getAllNotifications(userId);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    enabled: !!userId,
+  });
+};

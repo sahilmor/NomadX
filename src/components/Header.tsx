@@ -129,6 +129,16 @@ const NotificationBell = ({ isMobile = false }: { isMobile?: boolean }) => {
             </p>
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-xs text-primary cursor-pointer justify-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate("/notifications");
+          }}
+        >
+          See all notifications
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
