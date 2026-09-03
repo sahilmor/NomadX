@@ -148,8 +148,8 @@ TRIP DETAILS:
 - Start Date: ${planRequest.startDate}
 - End Date: ${planRequest.endDate}
 - Duration: ${days} days
-- Budget: ${planRequest.budget ? `${planRequest.budget} ${planRequest.currency || "INR"}` : "Flexible budget"}
-- Number of Travelers: ${planRequest.travelers || 1}
+- Budget: ${planRequest.budget ? `${planRequest.budget} ${planRequest.currency || "INR"} (this is the TOTAL budget for the WHOLE group, not per person)` : "Flexible budget"}
+- Number of Travelers: ${planRequest.travelers || 1}${planRequest.travelers > 1 ? ` (per-person budget: about ${Math.round(planRequest.budget / planRequest.travelers)} ${planRequest.currency || "INR"})` : ""}
 - Description: ${planRequest.description || "General travel experience"}
 
 OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this exact structure:
@@ -306,8 +306,8 @@ IMPORTANT:
 - Generate AT LEAST 12 POIs total (for a multi-day trip, aim for 5-8 per day) — a plan with only a handful of places is a failure
 - Include a mix of famous AND off-beat locations (at least 30% off-beat/hidden gems)
 - Every day in the itinerary MUST have 4-7 scheduled items with specific times
-- For accommodation: ALWAYS give all three tiers (budget/midrange/unique) per city with REALISTIC prices for that city, real hostels/hotels/homestays where possible
-- For transportation: ALWAYS include budget alternates — bike/scooty rentals, local buses, metro, autos — alongside cabs and flights, with realistic per-day or per-ride costs and money-saving tips
+- For accommodation: ALWAYS give all three tiers (budget/midrange/unique) per city with REALISTIC prices for that city, real hostels/hotels/homestays where possible. COST BASIS MATTERS: hostel/dorm/guesthouse prices are PER PERSON PER NIGHT (a bed), hotel/homestay/apartment prices are PER ROOM PER NIGHT (a room that fits 2-3 people). The trip has ${planRequest.travelers || 1} traveler(s) — scale sensibly for the group.
+- For transportation: ALWAYS include budget alternates — bike/scooty rentals, local buses, metro, autos — alongside cabs and flights, with realistic per-day or per-ride costs and money-saving tips. COST BASIS: bus/train/flight/metro/ferry prices are PER PERSON; cab/taxi/car prices are PER VEHICLE (total for the group, one cab fits 4).
 - Provide realistic coordinates (lat/lng) for all locations
 - Ensure all dates are within the trip duration
 - Make activities budget-friendly but also include premium options
@@ -550,18 +550,22 @@ IMPORTANT:
         for (const tier of ["budget", "midrange", "unique"]) {
           const opt = cityAcc[tier];
           if (!opt || opt.cost == null) continue;
+          const stayType = (opt.type || tier).toUpperCase();
+          // hostel/dorm/guesthouse = per person (a bed); hotel/homestay/apartment = per room
+          const isPerPerson = /HOSTEL|DORM|GUESTHOUSE|BACKPACKER|BUNK/.test(stayType);
           stayPayload.push({
             id: crypto.randomUUID(),
             tripId: planRequest.tripId,
             cityStopId,
             name: opt.name || `${tier} stay`,
-            type: (opt.type || tier).toUpperCase(),
+            type: stayType,
             tier: tier.toUpperCase(),
             costPerNight: Number(opt.cost) || 0,
             currency: opt.currency || planRequest.currency || "INR",
             location: opt.location || null,
             description: null,
             nights: 0,
+            isPerPerson,
           });
         }
       });
@@ -578,14 +582,17 @@ IMPORTANT:
 
     // 5) Transport options (intercity routes + local alternatives)
     const transportPayload: any[] = [];
+    // shared-vehicle modes cost per vehicle (total for the group), the rest are per person
+    const perVehicleModes = /^(CAB|TAXI|CAR|PRIVATE_CAR|RENTAL_CAR|AUTO_RICKSHAW|AUTO)$/;
     if (Array.isArray(travelPlan.transportation?.routes)) {
       travelPlan.transportation.routes.forEach((route: any) => {
         if (Array.isArray(route.options)) {
           route.options.forEach((opt: any) => {
+            const mode = (opt.mode || "TRANSPORT").toUpperCase();
             transportPayload.push({
               id: crypto.randomUUID(),
               tripId: planRequest.tripId,
-              mode: (opt.mode || "TRANSPORT").toUpperCase(),
+              mode,
               scope: "INTERCITY",
               fromCity: route.from || null,
               toCity: route.to || null,
@@ -594,6 +601,7 @@ IMPORTANT:
               duration: opt.duration || null,
               tips: opt.tips || null,
               selected: false,
+              isPerPerson: !perVehicleModes.test(mode),
             });
           });
         }
@@ -601,10 +609,11 @@ IMPORTANT:
     }
     if (Array.isArray(travelPlan.transportation?.localTransportOptions)) {
       travelPlan.transportation.localTransportOptions.forEach((opt: any) => {
+        const mode = (opt.mode || "LOCAL").toUpperCase();
         transportPayload.push({
           id: crypto.randomUUID(),
           tripId: planRequest.tripId,
-          mode: (opt.mode || "LOCAL").toUpperCase(),
+          mode,
           scope: "LOCAL",
           fromCity: opt.city || null,
           toCity: null,
@@ -613,6 +622,7 @@ IMPORTANT:
           duration: opt.duration || null,
           tips: opt.tips || null,
           selected: false,
+          isPerPerson: !perVehicleModes.test(mode),
         });
       });
     }

@@ -25,6 +25,7 @@ interface StaysTabProps {
   stays: Stay[];
   cityStops: CityStopInfo[];
   tripNights: number;
+  travelers?: number;
   onSetNights: (stay: Stay, nights: number) => void;
   isSetting: boolean;
 }
@@ -35,7 +36,7 @@ const tierConfig: Record<string, { label: string; className: string }> = {
   UNIQUE: { label: "Unique stay", className: "bg-purple-500/15 text-purple-600 dark:text-purple-400" },
 };
 
-const StaysTab = ({ stays, cityStops, tripNights, onSetNights, isSetting }: StaysTabProps) => {
+const StaysTab = ({ stays, cityStops, tripNights, travelers = 1, onSetNights, isSetting }: StaysTabProps) => {
   // nights available per city, from the CityStop dates (fall back to trip nights)
   const cityNights = useMemo(() => {
     const map: Record<string, number> = {};
@@ -73,10 +74,14 @@ const StaysTab = ({ stays, cityStops, tripNights, onSetNights, isSetting }: Stay
   const totalStayCost = useMemo(
     () =>
       stays.reduce(
-        (sum, s) => sum + (s.nights > 0 ? s.nights * s.costPerNight : 0),
+        (sum, s) =>
+          sum +
+          (s.nights > 0
+            ? s.nights * s.costPerNight * (s.isPerPerson ? travelers : 1)
+            : 0),
         0
       ),
-    [stays]
+    [stays, travelers]
   );
 
   if (!stays.length) {
@@ -155,10 +160,12 @@ const StaysTab = ({ stays, cityStops, tripNights, onSetNights, isSetting }: Stay
                         <span className="text-lg font-bold">
                           {stay.costPerNight.toLocaleString()}
                         </span>
-                        <span className="text-xs text-muted-foreground">/night</span>
+                        <span className="text-xs text-muted-foreground">
+                          /night{stay.isPerPerson && travelers > 1 ? ` \u00d7 ${travelers} travelers` : " \u00b7 per room/bed"}
+                        </span>
                         {picked && (
                           <span className="text-xs text-muted-foreground ml-auto">
-                            = {"\u20B9"}{(stay.nights * stay.costPerNight).toLocaleString()}
+                            = {"\u20B9"}{(stay.nights * stay.costPerNight * (stay.isPerPerson ? travelers : 1)).toLocaleString()}
                           </span>
                         )}
                       </div>

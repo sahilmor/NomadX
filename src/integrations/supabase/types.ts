@@ -150,16 +150,19 @@ export type Database = {
           category: Database["public"]["Enums"]["ExpenseCategory"]
           createdAt: string
           currency: string
+          isPerPerson: boolean
           id: string
           notes: string | null
           payerId: string
           tripId: string
+          isPerPerson: boolean
         }
         Insert: {
           amount: number
           category: Database["public"]["Enums"]["ExpenseCategory"]
           createdAt?: string
           currency: string
+          isPerPerson: boolean
           id: string
           notes?: string | null
           payerId: string
@@ -170,6 +173,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["ExpenseCategory"]
           createdAt?: string
           currency?: string
+          isPerPerson?: boolean | null
           id?: string
           notes?: string | null
           payerId?: string
@@ -664,6 +668,7 @@ export type Database = {
           tier: string
           costPerNight: number
           currency: string
+          isPerPerson: boolean
           location: string | null
           description: string | null
           nights: number
@@ -677,6 +682,7 @@ export type Database = {
           tier?: string
           costPerNight: number
           currency?: string
+          isPerPerson?: boolean | null
           location?: string | null
           description?: string | null
           nights?: number
@@ -690,6 +696,7 @@ export type Database = {
           tier?: string
           costPerNight?: number
           currency?: string
+          isPerPerson?: boolean | null
           location?: string | null
           description?: string | null
           nights?: number
@@ -706,6 +713,7 @@ export type Database = {
           toCity: string | null
           cost: number | null
           currency: string
+          isPerPerson: boolean
           duration: string | null
           tips: string | null
           selected: boolean
@@ -719,6 +727,7 @@ export type Database = {
           toCity?: string | null
           cost?: number | null
           currency?: string
+          isPerPerson?: boolean | null
           duration?: string | null
           tips?: string | null
           selected?: boolean
@@ -732,6 +741,7 @@ export type Database = {
           toCity?: string | null
           cost?: number | null
           currency?: string
+          isPerPerson?: boolean | null
           duration?: string | null
           tips?: string | null
           selected?: boolean

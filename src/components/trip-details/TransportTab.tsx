@@ -20,6 +20,7 @@ import type { TransportOption } from "@/services/stays-transport.service";
 
 interface TransportTabProps {
   options: TransportOption[];
+  travelers?: number;
   onToggle: (option: TransportOption, picked: boolean) => void;
   isToggling: boolean;
 }
@@ -45,7 +46,7 @@ const modeLabels: Record<string, string> = {
   AUTO_RICKSHAW: "Auto rickshaw",
 };
 
-const TransportTab = ({ options, onToggle, isToggling }: TransportTabProps) => {
+const TransportTab = ({ options, travelers = 1, onToggle, isToggling }: TransportTabProps) => {
   const intercityLegs = useMemo(() => {
     const map = new Map<string, TransportOption[]>();
     options
@@ -72,8 +73,12 @@ const TransportTab = ({ options, onToggle, isToggling }: TransportTabProps) => {
 
   const picked = useMemo(() => options.filter((o) => o.selected), [options]);
   const pickedTotal = useMemo(
-    () => picked.reduce((sum, o) => sum + (o.cost || 0), 0),
-    [picked]
+    () =>
+      picked.reduce(
+        (sum, o) => sum + (o.cost || 0) * (o.isPerPerson ? travelers : 1),
+        0
+      ),
+    [picked, travelers]
   );
 
   if (!options.length) {
@@ -119,6 +124,15 @@ const TransportTab = ({ options, onToggle, isToggling }: TransportTabProps) => {
                 </span>
               ) : (
                 <span className="text-sm text-muted-foreground">Varies</span>
+              )}
+              {opt.cost != null && (
+                <span className="text-xs text-muted-foreground">
+                  {opt.isPerPerson
+                    ? travelers > 1
+                      ? `per person \u00b7 \u20b9${(opt.cost * travelers).toLocaleString()} total`
+                      : "per person"
+                    : "for the group"}
+                </span>
               )}
               {opt.duration && (
                 <span className="text-xs text-muted-foreground">&bull; {opt.duration}</span>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format, differenceInDays } from "date-fns";
 import { ShoppingBag, Receipt, Users } from "lucide-react";
-import { useTripExpenses } from "@/services/expense.service";
+import { useTripExpenses, useUpdateExpense } from "@/services/expense.service";
 import {
   useTripSplits,
   useReplaceSplits,
@@ -505,6 +505,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
   const { toast } = useToast();
   const { data: expenseRows, isLoading: isLoadingExpenses } = useTripExpenses(tripId);
   const { data: transportOptions } = useTripTransport(tripId);
+  const updateExpenseMutation = useUpdateExpense(tripId);
   const { data: splitRows } = useTripSplits(tripId);
   const replaceSplitsMutation = useReplaceSplits(tripId);
   const toggleSettledMutation = useToggleSplitSettled(tripId);
@@ -586,6 +587,9 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
       source: "pick" | "manual";
       raw: ItineraryItem | null;
       expenseId: string | null;
+      isPerPerson?: boolean;
+      baseAmount?: number;
+      peopleMultiplier?: number;
     };
 
     const items: UnifiedExpense[] = [];
@@ -593,9 +597,13 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
     // 1) Exact picks from the Expense table (stays + transport the user chose).
     //    Stay amounts are already costPerNight x nights. LOCAL transport picks
     //    are per-day, so they are multiplied by the nights in that city.
+    //    Per-person costs (hostel beds, bus/train tickets) are then multiplied
+    //    by the trip's traveler count to reflect the real group cost.
+    const travelers = Math.max(1, trip?.totalTravelers || 1);
     for (const e of expenseRows || []) {
       let amount = e.amount || 0;
       let title = (e.notes || e.category).replace(/^Stay pick \S+ \u2014 /, "").replace(/^Transport pick \S+ \u2014 /, "");
+      let peopleMultiplier = 1;
 
       const pickMatch = (e.notes || "").match(/^Transport pick (\S+)/);
       if (pickMatch) {
@@ -609,6 +617,12 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         }
       }
 
+      if (e.isPerPerson && travelers > 1) {
+        peopleMultiplier = travelers;
+        amount = amount * travelers;
+        title = `${title} \u00d7 ${travelers} travelers`;
+      }
+
       items.push({
         key: `exp-${e.id}`,
         date: e.createdAt ? new Date(e.createdAt) : null,
@@ -618,6 +632,9 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         source: "pick",
         raw: null,
         expenseId: e.id,
+        isPerPerson: !!e.isPerPerson,
+        baseAmount: e.amount || 0,
+        peopleMultiplier,
       });
     }
 
@@ -700,6 +717,11 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
               <p className="text-xl sm:text-2xl font-bold">
                 {trip.budgetCap?.toFixed(2)}
               </p>
+              {(trip.totalTravelers || 1) > 1 && (
+                <p className="text-xs text-muted-foreground">
+                  ~{((trip.budgetCap || 0) / trip.totalTravelers!).toFixed(2)} {trip.currency} per person × {trip.totalTravelers} travelers
+                </p>
+              )}
             </div>
             <div className="rounded-lg p-3 sm:p-4 bg-muted">
               <p className="text-xs sm:text-sm text-muted-foreground">Remaining</p>
@@ -869,7 +891,52 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium text-xs sm:text-sm">
-                        {item.amount.toFixed(2)} {trip.currency}
+                        <div className="flex items-center justify-end gap-1">
+                          <span>
+                            {item.amount.toFixed(2)} {trip.currency}
+                          </span>
+                          {item.source === "pick" && item.expenseId && (trip.totalTravelers || 1) > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              title={
+                                item.isPerPerson
+                                  ? `Per person — total ${item.amount.toFixed(2)} for ${item.peopleMultiplier} travelers. Click if this cost is already for the whole group.`
+                                  : `Group total — click if this cost is per person (then it counts as ${(item.baseAmount! * (trip.totalTravelers || 1)).toFixed(2)}).`
+                              }
+                              disabled={updateExpenseMutation.isPending}
+                              className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                              onClick={() =>
+                                updateExpenseMutation.mutate(
+                                  {
+                                    id: item.expenseId as string,
+                                    updates: { isPerPerson: !item.isPerPerson },
+                                  },
+                                  {
+                                    onSuccess: () => {
+                                      toast({
+                                        title: item.isPerPerson
+                                          ? "Marked as group total"
+                                          : "Marked as per person",
+                                      });
+                                    },
+                                    onError: (e: any) =>
+                                      toast({
+                                        title: "Error",
+                                        description: e.message,
+                                        variant: "destructive",
+                                      }),
+                                  }
+                                )
+                              }
+                            >
+                              {item.isPerPerson
+                                ? `per person ×${item.peopleMultiplier}`
+                                : "group total"}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         {item.expenseId ? (
@@ -995,20 +1062,54 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
 }) => {
   const isOpen = !!expense;
   const existing = expense ? splitsByExpense.get(expense.id) || [] : [];
+  // Nothing is preselected — the user picks people manually.
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Per-person amounts. Empty string = "use whatever is left, split equally".
+  const [customShares, setCustomShares] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (expense) {
       const rows = splitsByExpense.get(expense.id) || [];
-      setSelected(
-        new Set(rows.length > 0 ? rows.map((r) => r.userId) : people.map((p) => p.id))
-      );
+      if (rows.length > 0) {
+        // Editing an existing split: show what was saved.
+        setSelected(new Set(rows.map((r) => r.userId)));
+        const cs: Record<string, string> = {};
+        rows.forEach((r) => {
+          cs[r.userId] = String(r.share);
+        });
+        setCustomShares(cs);
+      } else {
+        setSelected(new Set());
+        setCustomShares({});
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expense?.id]);
 
-  const perHead =
-    expense && selected.size > 0 ? expense.amount / selected.size : 0;
+  // Custom values are respected; the remainder is split equally between the
+  // people without a custom amount.
+  const effectiveShares: Record<string, number> = {};
+  if (expense) {
+    const ids = Array.from(selected);
+    const openIds: string[] = [];
+    let used = 0;
+    ids.forEach((id) => {
+      const raw = (customShares[id] ?? "").trim();
+      const v = raw === "" ? NaN : Number(raw);
+      if (!isNaN(v) && raw !== "") {
+        effectiveShares[id] = v;
+        used += v;
+      } else {
+        openIds.push(id);
+      }
+    });
+    const perOpen = openIds.length > 0 ? Math.max(0, expense.amount - used) / openIds.length : 0;
+    openIds.forEach((id) => {
+      effectiveShares[id] = perOpen;
+    });
+  }
+  const shareSum = Object.values(effectiveShares).reduce((a, b) => a + b, 0);
+  const shareMismatch = expense ? Math.abs(shareSum - expense.amount) > 0.5 : false;
 
   const togglePerson = (id: string) => {
     setSelected((prev) => {
@@ -1026,7 +1127,7 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Split expense</DialogTitle>
         </DialogHeader>
@@ -1036,9 +1137,7 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
             <div className="rounded-lg bg-muted/30 p-3">
               <p className="text-sm font-medium">{expense.title}</p>
               <p className="text-xs text-muted-foreground">
-                {expense.amount.toFixed(2)} {currency}
-                {selected.size > 0 &&
-                  ` · ${(expense.amount / selected.size).toFixed(2)} each`}
+                {expense.amount.toFixed(2)} {currency} · pick who owes what
               </p>
             </div>
 
@@ -1046,6 +1145,7 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
               {people.map((p) => {
                 const isPayer = p.id === payerId;
                 const row = existing.find((r) => r.userId === p.id);
+                const isSelected = selected.has(p.id);
                 return (
                   <div
                     key={p.id}
@@ -1055,7 +1155,7 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
                       <input
                         type="checkbox"
                         className="h-4 w-4"
-                        checked={selected.has(p.id)}
+                        checked={isSelected}
                         onChange={() => togglePerson(p.id)}
                       />
                       <span className="text-sm">{p.label}</span>
@@ -1065,26 +1165,60 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
                         </span>
                       )}
                     </label>
-                    {row && row.userId !== payerId ? (
-                      <label className="flex items-center space-x-2 text-xs text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5"
-                          checked={row.settled}
-                          disabled={isToggling}
-                          onChange={() => onToggleSettled(row.id, !row.settled)}
-                        />
-                        paid back
-                      </label>
-                    ) : selected.has(p.id) ? (
-                      <span className="text-xs text-muted-foreground">
-                        {perHead.toFixed(2)}
-                      </span>
+                    {row && row.userId !== payerId && isSelected ? (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-muted-foreground">
+                          {effectiveShares[p.id]?.toFixed(2)}
+                        </span>
+                        <label className="flex items-center space-x-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5"
+                            checked={row.settled}
+                            disabled={isToggling}
+                            onChange={() => onToggleSettled(row.id, !row.settled)}
+                          />
+                          paid back
+                        </label>
+                      </div>
+                    ) : isSelected ? (
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="h-8 w-24 text-right text-xs"
+                        value={customShares[p.id] ?? ""}
+                        placeholder={(effectiveShares[p.id] ?? 0).toFixed(2)}
+                        onChange={(e) =>
+                          setCustomShares((prev) => ({
+                            ...prev,
+                            [p.id]: e.target.value,
+                          }))
+                        }
+                      />
                     ) : null}
                   </div>
                 );
               })}
             </div>
+
+            {selected.size > 0 && (
+              <p
+                className={`text-xs ${
+                  shareMismatch ? "text-destructive" : "text-muted-foreground"
+                }`}
+              >
+                Total {shareSum.toFixed(2)} of {expense.amount.toFixed(2)}{" "}
+                {currency}
+                {shareMismatch &&
+                  " — shares don't add up to the expense amount yet"}
+              </p>
+            )}
+            {selected.size === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Select the people this expense should be split with.
+              </p>
+            )}
 
             <DialogFooter>
               <Button
@@ -1098,12 +1232,12 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
               <Button
                 type="button"
                 className="btn-coral"
-                disabled={isSaving || selected.size === 0}
+                disabled={isSaving || selected.size === 0 || shareMismatch}
                 onClick={() =>
                   onSave(
                     Array.from(selected).map((userId) => ({
                       userId,
-                      share: expense.amount / selected.size,
+                      share: effectiveShares[userId] ?? 0,
                       settled: userId === payerId,
                     }))
                   )
@@ -1113,7 +1247,7 @@ const SplitDialog: React.FC<SplitDialogProps> = ({
                   ? "Saving..."
                   : existing.length > 0
                   ? "Update split"
-                  : "Split equally"}
+                  : "Save split"}
               </Button>
             </DialogFooter>
           </div>

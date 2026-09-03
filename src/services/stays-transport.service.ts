@@ -13,6 +13,7 @@ export type Stay = {
   location: string | null;
   description: string | null;
   nights: number;
+  isPerPerson: boolean;
 };
 
 export type TransportOption = {
@@ -27,6 +28,7 @@ export type TransportOption = {
   duration: string | null;
   tips: string | null;
   selected: boolean;
+  isPerPerson: boolean;
 };
 
 export type CityStopInfo = {
@@ -121,7 +123,7 @@ const syncStayExpense = async (
   const label = `Stay pick ${stay.id} — ${stay.name} (${nights} night${nights > 1 ? 's' : ''}${cityName ? `, ${cityName}` : ''})`;
 
   if (existing?.length) {
-    await supabase.from('Expense').update({ amount, notes: label }).eq('id', existing[0].id);
+    await supabase.from('Expense').update({ amount, notes: label, isPerPerson: stay.isPerPerson }).eq('id', existing[0].id);
   } else {
     await supabase.from('Expense').insert({
       id: crypto.randomUUID(),
@@ -131,6 +133,7 @@ const syncStayExpense = async (
       currency: stay.currency,
       payerId: userId,
       notes: label,
+      isPerPerson: stay.isPerPerson,
     });
   }
 };
@@ -195,7 +198,7 @@ export const useToggleTransport = () => {
       const label = `Transport pick ${option.id} \u2014 ${option.mode.replace(/_/g, ' ')} (${route})`;
 
       if (existing?.length) {
-        await supabase.from('Expense').update({ amount: Math.round(option.cost), notes: label }).eq('id', existing[0].id);
+        await supabase.from('Expense').update({ amount: Math.round(option.cost), notes: label, isPerPerson: option.isPerPerson }).eq('id', existing[0].id);
       } else {
         await supabase.from('Expense').insert({
           id: crypto.randomUUID(),
@@ -205,6 +208,7 @@ export const useToggleTransport = () => {
           currency: option.currency,
           payerId: userId,
           notes: label,
+          isPerPerson: option.isPerPerson,
         });
       }
     },

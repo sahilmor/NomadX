@@ -222,6 +222,7 @@ const TripDetail = () => {
               stays={stays || []}
               cityStops={cityStops || []}
               tripNights={nights}
+              travelers={trip?.totalTravelers || 1}
               onSetNights={(stay, n) => setStayNights.mutate({ stay, nights: n })}
               isSetting={setStayNights.isPending}
             />
@@ -231,6 +232,7 @@ const TripDetail = () => {
           <TabsContent value="transport" className="mt-0">
             <TransportTab
               options={transportOptions || []}
+              travelers={trip?.totalTravelers || 1}
               onToggle={(opt, picked) => toggleTransport.mutate({ option: opt, picked })}
               isToggling={toggleTransport.isPending}
             />
