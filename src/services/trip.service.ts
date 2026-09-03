@@ -446,6 +446,24 @@ export const useInviteTripMember = (tripId: string) => {
   });
 };
 
+export const useSetTotalTravelers = (tripId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (totalTravelers: number) => {
+      const { error } = await supabase
+        .from('Trip')
+        .update({ totalTravelers })
+        .eq('id', tripId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+};
+
 /**
  * Optional: React Query hook for "My Trips" page
  */

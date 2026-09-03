@@ -10,11 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Search, UserPlus, UserCheck } from "lucide-react";
+import { Plus, Trash2, Search, UserPlus, UserCheck, Users, Minus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import {
     useRemoveTripMember,
     useInviteTripMember,
+    useSetTotalTravelers,
     TripMemberWithUser,
     TripWithOwner,
 } from "@/services/trip.service";
@@ -57,8 +58,9 @@ interface MembersTabProps {
 interface MemberSearchResultCardProps {
     user: SearchUser;
     isMember: boolean;
-    onInvite: (userId: string) => void;
+    onInvite: (userId: string, role: "EDITOR" | "VIEWER") => void;
     isInviting: boolean;
+    role: "EDITOR" | "VIEWER";
 }
 
 const MemberSearchResultCard: React.FC<MemberSearchResultCardProps> = ({
@@ -66,6 +68,7 @@ const MemberSearchResultCard: React.FC<MemberSearchResultCardProps> = ({
     isMember,
     onInvite,
     isInviting,
+    role,
 }) => (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-muted/30 rounded-lg">
         <div className="flex items-center space-x-4">
@@ -87,7 +90,7 @@ const MemberSearchResultCard: React.FC<MemberSearchResultCardProps> = ({
         <Button
             size="sm"
             variant={isMember ? "outline" : "default"}
-            onClick={() => onInvite(user.id)}
+            onClick={() => onInvite(user.id, role)}
             disabled={isMember || isInviting}
             className="w-full sm:w-auto"
         >
@@ -117,6 +120,24 @@ const MembersTab: React.FC<MembersTabProps> = ({
 
     const removeMemberMutation = useRemoveTripMember(tripId);
     const inviteMemberMutation = useInviteTripMember(tripId);
+    const setTotalTravelersMutation = useSetTotalTravelers(tripId);
+
+    const isOwner = trip.ownerId === user?.id;
+    const totalTravelers = trip.totalTravelers ?? 1;
+
+    const handleSetTravelers = (next: number) => {
+        const clamped = Math.min(30, Math.max(1, next));
+        if (clamped === totalTravelers || setTotalTravelersMutation.isPending) return;
+        setTotalTravelersMutation.mutate(clamped, {
+            onError: (e) => {
+                toast({
+                    title: "Error",
+                    description: `Could not update group size: ${e.message}`,
+                    variant: "destructive",
+                });
+            },
+        });
+    };
 
     const invitedMembers = useMemo(
         () => members.filter((m) => m.userId !== trip.ownerId),
@@ -168,6 +189,7 @@ const MembersTab: React.FC<MembersTabProps> = ({
 
     // ---- INVITE MEMBER SEARCH STATE ----
     const [isInviteOpen, setIsInviteOpen] = useState(false);
+    const [inviteRole, setInviteRole] = useState<"EDITOR" | "VIEWER">("EDITOR");
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -195,7 +217,7 @@ const MembersTab: React.FC<MembersTabProps> = ({
         return () => clearTimeout(timeout);
     }, [searchQuery, user]);
 
-    const handleInviteUser = (userIdToInvite: string) => {
+    const handleInviteUser = (userIdToInvite: string, role: "EDITOR" | "VIEWER" = "VIEWER") => {
         if (!tripId) return;
 
         if (!user) {
@@ -221,7 +243,7 @@ const MembersTab: React.FC<MembersTabProps> = ({
                 id: crypto.randomUUID(),
                 tripId,
                 userId: userIdToInvite,
-                role: "VIEWER",
+                role,
                 status: "ACTIVE",
             },
             {
@@ -272,7 +294,43 @@ const MembersTab: React.FC<MembersTabProps> = ({
                         Invite
                     </Button>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-5">
+                    {isOwner && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg bg-muted/30 p-4">
+                            <div className="flex items-center space-x-3">
+                                <div className="rounded-full bg-primary/10 p-2">
+                                    <Users className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium">Total travelers</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Includes companions without accounts. Used for AI planning and budgets.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-3 self-start sm:self-auto">
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    disabled={totalTravelers <= 1 || setTotalTravelersMutation.isPending}
+                                    onClick={() => handleSetTravelers(totalTravelers - 1)}
+                                >
+                                    <Minus className="w-4 h-4" />
+                                </Button>
+                                <span className="w-10 text-center text-lg font-bold">
+                                    {totalTravelers}
+                                </span>
+                                <Button
+                                    size="icon"
+                                    variant="outline"
+                                    disabled={totalTravelers >= 30 || setTotalTravelersMutation.isPending}
+                                    onClick={() => handleSetTravelers(totalTravelers + 1)}
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                     {isLoadingMembers ? (
                         <p className="text-muted-foreground text-center">
                             Loading members...
@@ -383,13 +441,13 @@ const MembersTab: React.FC<MembersTabProps> = ({
                     <DialogHeader>
                         <DialogTitle>Invite Member</DialogTitle>
                         <DialogDescription>
-                            Search for a user by username and invite them to this trip.
+                            Search by name, username or email, then pick what they can do.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-2">
                         <div className="space-y-2">
-                            <Label htmlFor="member-search">Search by username</Label>
+                            <Label htmlFor="member-search">Search by name, username or email</Label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                                 <Input
@@ -400,6 +458,30 @@ const MembersTab: React.FC<MembersTabProps> = ({
                                     className="pl-10"
                                     autoComplete="off"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Access</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={inviteRole === "EDITOR" ? "default" : "outline"}
+                                    onClick={() => setInviteRole("EDITOR")}
+                                >
+                                    <UserPlus className="w-4 h-4 mr-1" />
+                                    Can edit
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={inviteRole === "VIEWER" ? "default" : "outline"}
+                                    onClick={() => setInviteRole("VIEWER")}
+                                >
+                                    <UserCheck className="w-4 h-4 mr-1" />
+                                    Can view only
+                                </Button>
                             </div>
                         </div>
 
@@ -423,6 +505,7 @@ const MembersTab: React.FC<MembersTabProps> = ({
                                         isMember={memberUserIds.has(u.id)}
                                         isInviting={isInviting}
                                         onInvite={handleInviteUser}
+                                        role={inviteRole}
                                     />
                                 ))}
 

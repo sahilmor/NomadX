@@ -7,12 +7,21 @@ import {
 } from "@/services/trip.service";
 import { useTripItinerary, useTripPOIs } from "@/services/itinerary.service";
 import {
+  useTripStays,
+  useTripTransport,
+  useTripCityStops,
+  useSetStayNights,
+  useToggleTransport,
+} from "@/services/stays-transport.service";
+import {
   ArrowLeft,
   Calendar,
   MapPin,
   Users,
   DollarSign,
   List,
+  BedDouble,
+  BusFront,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -28,6 +37,8 @@ import ItineraryTab from "@/components/trip-details/ItineraryTab";
 import PoisTab from "@/components/trip-details/PoisTab";
 import BudgetTab from "@/components/trip-details/BudgetTab";
 import MembersTab from "@/components/trip-details/MembersTab";
+import StaysTab from "@/components/trip-details/StaysTab";
+import TransportTab from "@/components/trip-details/TransportTab";
 
 const TripDetail = () => {
   const { tripId } = useParams<{ tripId: string }>();
@@ -54,12 +65,28 @@ const TripDetail = () => {
   const { data: members, isLoading: isLoadingMembers } =
     useTripMembers(tripId);
 
+  const { data: stays, isLoading: isLoadingStays } = useTripStays(tripId);
+  const { data: transportOptions, isLoading: isLoadingTransport } =
+    useTripTransport(tripId);
+  const { data: cityStops } = useTripCityStops(tripId);
+
+  // NOTE: all hooks must stay ABOVE the early returns below, or React
+  // unmounts the tree ("rendered fewer hooks than expected") -> white page.
+  const nights = trip
+    ? Math.max(1, differenceInDays(new Date(trip.endDate), new Date(trip.startDate)))
+    : 1;
+
+  const setStayNights = useSetStayNights();
+  const toggleTransport = useToggleTransport();
+
   const isLoading =
     isAuthLoading ||
     isLoadingTrip ||
     isLoadingItinerary ||
     isLoadingPOIs ||
-    isLoadingMembers;
+    isLoadingMembers ||
+    isLoadingStays ||
+    isLoadingTransport;
 
   if (isLoading) {
     return (
@@ -150,6 +177,20 @@ const TripDetail = () => {
               <span>Map &amp; POIs</span>
             </TabsTrigger>
             <TabsTrigger
+              value="stays"
+              className="flex-1 min-w-[90px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
+            >
+              <BedDouble className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Stays</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="transport"
+              className="flex-1 min-w-[100px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
+            >
+              <BusFront className="w-4 h-4 mr-1 sm:mr-2" />
+              <span>Transport</span>
+            </TabsTrigger>
+            <TabsTrigger
               value="budget"
               className="flex-1 min-w-[90px] text-xs sm:text-sm flex items-center justify-center whitespace-nowrap px-2 py-2"
             >
@@ -175,12 +216,33 @@ const TripDetail = () => {
             <PoisTab tripId={tripId} pois={pois || []} />
           </TabsContent>
 
+          {/* STAYS TAB */}
+          <TabsContent value="stays" className="mt-0">
+            <StaysTab
+              stays={stays || []}
+              cityStops={cityStops || []}
+              tripNights={nights}
+              onSetNights={(stay, n) => setStayNights.mutate({ stay, nights: n })}
+              isSetting={setStayNights.isPending}
+            />
+          </TabsContent>
+
+          {/* TRANSPORT TAB */}
+          <TabsContent value="transport" className="mt-0">
+            <TransportTab
+              options={transportOptions || []}
+              onToggle={(opt, picked) => toggleTransport.mutate({ option: opt, picked })}
+              isToggling={toggleTransport.isPending}
+            />
+          </TabsContent>
+
           {/* BUDGET TAB */}
           <TabsContent value="budget" className="mt-0">
             <BudgetTab
               tripId={tripId}
               trip={trip}
               itinerary={itinerary || []}
+              cityStops={cityStops || []}
               isLoadingItinerary={isLoadingItinerary}
             />
           </TabsContent>

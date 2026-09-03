@@ -160,12 +160,8 @@ const Friends = () => {
 
     const search = async () => {
       if (searchQuery.trim().length < 2) {
-        setIsSearching(true);
-  const { data, error } = await searchUsersByUsername(searchQuery, user.id);
-  console.log("Search results data:", data);
-  console.log("Search error:", error);      
-  setSearchResults(data || []);
-  setIsSearching(false);
+        setSearchResults([]);
+        setIsSearching(false);
         return;
       }
 
@@ -321,7 +317,7 @@ const Friends = () => {
                 Find New Friends
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Search for other users by their username.
+                Search by name, username or email.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pb-5 sm:pb-6">
@@ -329,7 +325,7 @@ const Friends = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                 <Input
                   id="invite"
-                  placeholder="Start typing a username..."
+                  placeholder="Search by name, @username or email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 sm:pl-10 text-sm sm:text-base"

@@ -188,7 +188,17 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
       "modes": ["metro", "bus", "bike", "walking"],
       "recommendations": "Best way to get around",
       "cost": "Daily pass cost"
-    }
+    },
+    "localTransportOptions": [
+      {
+        "city": "City Name",
+        "mode": "BIKE_RENTAL/SCOOTY_RENTAL/CAB/AUTO_RICKSHAW/METRO/BUS/WALK",
+        "cost": 350,
+        "currency": "INR",
+        "duration": "Per day / per ride",
+        "tips": "Where to rent, price negotiation, when this option makes sense"
+      }
+    ]
   },
   "accommodation": [
     {
@@ -293,7 +303,11 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
 }
 
 IMPORTANT:
+- Generate AT LEAST 12 POIs total (for a multi-day trip, aim for 5-8 per day) — a plan with only a handful of places is a failure
 - Include a mix of famous AND off-beat locations (at least 30% off-beat/hidden gems)
+- Every day in the itinerary MUST have 4-7 scheduled items with specific times
+- For accommodation: ALWAYS give all three tiers (budget/midrange/unique) per city with REALISTIC prices for that city, real hostels/hotels/homestays where possible
+- For transportation: ALWAYS include budget alternates — bike/scooty rentals, local buses, metro, autos — alongside cabs and flights, with realistic per-day or per-ride costs and money-saving tips
 - Provide realistic coordinates (lat/lng) for all locations
 - Ensure all dates are within the trip duration
 - Make activities budget-friendly but also include premium options
@@ -301,29 +315,49 @@ IMPORTANT:
 - Include practical tips and insider knowledge
 - Consider the number of travelers in recommendations`;
 
-    // Call Gemini
-    const geminiResponse = await fetch(
-      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.8,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json",
-          },
-        }),
-      }
-    );
+    // Call Gemini (with model fallbacks — a 503 on one model shouldn't kill the plan)
+    // NOTE: verified live on 2026-09-03 — gemini-flash-latest hangs >120s and
+    // 2.5/2.0-flash return 404 for new API keys. flash-lite answers in ~7-11s.
+    const GEMINI_MODELS = [
+      "gemini-flash-lite-latest",
+      "gemini-flash-latest",
+    ];
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
+    let geminiResponse: Response | null = null;
+    let lastGeminiError = "";
+    for (const model of GEMINI_MODELS) {
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.8,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+      };
+      const attempt = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig,
+          }),
+        }
+      );
+      if (attempt.ok) {
+        geminiResponse = attempt;
+        break;
+      }
+      lastGeminiError = await attempt.text();
+      console.error(`Gemini model ${model} failed:`, lastGeminiError);
+      // Only fall through to the next model on transient/server errors
+      if (attempt.status !== 503 && attempt.status !== 429 && attempt.status >= 500) break;
+    }
+
+    if (!geminiResponse) {
+      const errText = lastGeminiError;
       console.error("Gemini API error:", errText);
       return new Response(
         JSON.stringify({
@@ -439,6 +473,20 @@ IMPORTANT:
 
     // 3) Itinerary items
     if (Array.isArray(travelPlan.itinerary) && travelPlan.itinerary.length) {
+      // AI sometimes sends time-only strings ("10:00") which Postgres rejects
+      // for a timestamp column — that fails the ENTIRE batch insert. Sanitize.
+      const toTimestamp = (dateStr: string | undefined, timeStr: string | null | undefined): string | null => {
+        if (!timeStr || typeof timeStr !== "string") return null;
+        const t = timeStr.trim();
+        // Already a full date or ISO datetime
+        if (/^\d{4}-\d{2}-\d{2}(T| )/.test(t)) return t.replace(" ", "T");
+        // Time-only: combine with the day's date
+        if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(t) && dateStr) {
+          return `${dateStr}T${t.length === 5 ? t + ":00" : t}`;
+        }
+        return null;
+      };
+
       const itineraryItemsPayload: any[] = [];
       travelPlan.itinerary.forEach((day: any) => {
         if (Array.isArray(day.items)) {
@@ -449,8 +497,8 @@ IMPORTANT:
               day: day.date || planRequest.startDate,
               title: item.title,
               kind: item.kind || "ACTIVITY",
-              startTime: item.startTime || null,
-              endTime: item.endTime || null,
+              startTime: toTimestamp(day.date, item.startTime),
+              endTime: toTimestamp(day.date, item.endTime),
               cost: item.cost ?? null,
               notes: item.notes || null,
               poiId: poiTempIdToDbIdMap.get(item.poiTempId) || null,
@@ -465,12 +513,119 @@ IMPORTANT:
           .insert(itineraryItemsPayload)
           .select();
 
-        savedData.itineraryItems = items || [];
-        if (itemsError) console.error("Error saving itinerary items:", itemsError);
+        if (itemsError) {
+          // Don't let one bad row nuke the batch — retry row by row
+          console.error("Batch itinerary insert failed, falling back to per-row:", itemsError);
+          const okRows: any[] = [];
+          for (const row of itineraryItemsPayload) {
+            const { data: one, error: oneErr } = await supabase
+              .from("ItineraryItem")
+              .insert(row)
+              .select();
+            if (oneErr) {
+              console.error("Dropping invalid itinerary row:", row.title, oneErr.message);
+            } else if (one) {
+              okRows.push(...one);
+            }
+          }
+          savedData.itineraryItems = okRows;
+        } else {
+          savedData.itineraryItems = items || [];
+        }
       } else {
         savedData.itineraryItems = [];
       }
     }
+
+    // 4) Stays (accommodation tiers per city)
+    const cityNameToDbId = new Map<string, string>();
+    savedData.cityStops?.forEach((cs: any) => {
+      if (cs?.name) cityNameToDbId.set(cs.name.toLowerCase(), cs.id);
+    });
+
+    if (Array.isArray(travelPlan.accommodation) && travelPlan.accommodation.length) {
+      const stayPayload: any[] = [];
+      travelPlan.accommodation.forEach((cityAcc: any) => {
+        const cityStopId = cityNameToDbId.get((cityAcc.city || "").toLowerCase()) || null;
+        for (const tier of ["budget", "midrange", "unique"]) {
+          const opt = cityAcc[tier];
+          if (!opt || opt.cost == null) continue;
+          stayPayload.push({
+            id: crypto.randomUUID(),
+            tripId: planRequest.tripId,
+            cityStopId,
+            name: opt.name || `${tier} stay`,
+            type: (opt.type || tier).toUpperCase(),
+            tier: tier.toUpperCase(),
+            costPerNight: Number(opt.cost) || 0,
+            currency: opt.currency || planRequest.currency || "INR",
+            location: opt.location || null,
+            description: null,
+            nights: 0,
+          });
+        }
+      });
+
+      if (stayPayload.length) {
+        const { data: stays, error: staysError } = await supabase
+          .from("Stay")
+          .insert(stayPayload)
+          .select();
+        savedData.stays = stays || [];
+        if (staysError) console.error("Error saving stays:", staysError);
+      }
+    }
+
+    // 5) Transport options (intercity routes + local alternatives)
+    const transportPayload: any[] = [];
+    if (Array.isArray(travelPlan.transportation?.routes)) {
+      travelPlan.transportation.routes.forEach((route: any) => {
+        if (Array.isArray(route.options)) {
+          route.options.forEach((opt: any) => {
+            transportPayload.push({
+              id: crypto.randomUUID(),
+              tripId: planRequest.tripId,
+              mode: (opt.mode || "TRANSPORT").toUpperCase(),
+              scope: "INTERCITY",
+              fromCity: route.from || null,
+              toCity: route.to || null,
+              cost: opt.cost ?? null,
+              currency: opt.currency || planRequest.currency || "INR",
+              duration: opt.duration || null,
+              tips: opt.tips || null,
+              selected: false,
+            });
+          });
+        }
+      });
+    }
+    if (Array.isArray(travelPlan.transportation?.localTransportOptions)) {
+      travelPlan.transportation.localTransportOptions.forEach((opt: any) => {
+        transportPayload.push({
+          id: crypto.randomUUID(),
+          tripId: planRequest.tripId,
+          mode: (opt.mode || "LOCAL").toUpperCase(),
+          scope: "LOCAL",
+          fromCity: opt.city || null,
+          toCity: null,
+          cost: opt.cost ?? null,
+          currency: opt.currency || planRequest.currency || "INR",
+          duration: opt.duration || null,
+          tips: opt.tips || null,
+          selected: false,
+        });
+      });
+    }
+    if (transportPayload.length) {
+      const { data: transport, error: transportError } = await supabase
+        .from("TransportOption")
+        .insert(transportPayload)
+        .select();
+      savedData.transportOptions = transport || [];
+      if (transportError) console.error("Error saving transport options:", transportError);
+    }
+
+    // NOTE: no auto expense estimates — expenses come only from user picks.
 
     // Return the generated plan and saved DB records
     return new Response(

@@ -37,17 +37,17 @@ DROP POLICY IF EXISTS "Users can insert own profile" ON public."User";
 -- Policy: Users can read their own profile
 CREATE POLICY "Users can read own profile"
   ON public."User" FOR SELECT
-  USING (auth.uid() = id);
+  USING (auth.uid()::text = id);
 
 -- Policy: Users can update their own profile
 CREATE POLICY "Users can update own profile"
   ON public."User" FOR UPDATE
-  USING (auth.uid() = id);
+  USING (auth.uid()::text = id);
 
 -- Policy: Users can insert their own profile (for manual creation)
 CREATE POLICY "Users can insert own profile"
   ON public."User" FOR INSERT
-  WITH CHECK (auth.uid() = id);
+  WITH CHECK (auth.uid()::text = id);
 
 -- Enable RLS on Trip table
 ALTER TABLE public."Trip" ENABLE ROW LEVEL SECURITY;
@@ -61,20 +61,20 @@ DROP POLICY IF EXISTS "Users can delete own trips" ON public."Trip";
 -- Policy: Users can read their own trips
 CREATE POLICY "Users can read own trips"
   ON public."Trip" FOR SELECT
-  USING (auth.uid() = "ownerId");
+  USING (auth.uid()::text = "ownerId");
 
 -- Policy: Users can create their own trips
 CREATE POLICY "Users can create own trips"
   ON public."Trip" FOR INSERT
-  WITH CHECK (auth.uid() = "ownerId");
+  WITH CHECK (auth.uid()::text = "ownerId");
 
 -- Policy: Users can update their own trips
 CREATE POLICY "Users can update own trips"
   ON public."Trip" FOR UPDATE
-  USING (auth.uid() = "ownerId");
+  USING (auth.uid()::text = "ownerId");
 
 -- Policy: Users can delete their own trips
 CREATE POLICY "Users can delete own trips"
   ON public."Trip" FOR DELETE
-  USING (auth.uid() = "ownerId");
+  USING (auth.uid()::text = "ownerId");
 

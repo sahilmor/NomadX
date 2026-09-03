@@ -508,6 +508,7 @@ export type Database = {
       Trip: {
         Row: {
           budgetCap: number | null
+          totalTravelers: number
           createdAt: string
           currency: string
           endDate: string
@@ -521,6 +522,7 @@ export type Database = {
         }
         Insert: {
           budgetCap?: number | null
+          totalTravelers?: number | null
           createdAt?: string
           currency?: string
           endDate: string
@@ -534,6 +536,7 @@ export type Database = {
         }
         Update: {
           budgetCap?: number | null
+          totalTravelers?: number | null
           createdAt?: string
           currency?: string
           endDate?: string
@@ -648,6 +651,90 @@ export type Database = {
           expires?: string
           identifier?: string
           token?: string
+        }
+        Relationships: []
+      }
+      Stay: {
+        Row: {
+          id: string
+          tripId: string
+          cityStopId: string | null
+          name: string
+          type: string
+          tier: string
+          costPerNight: number
+          currency: string
+          location: string | null
+          description: string | null
+          nights: number
+        }
+        Insert: {
+          id: string
+          tripId: string
+          cityStopId?: string | null
+          name: string
+          type?: string
+          tier?: string
+          costPerNight: number
+          currency?: string
+          location?: string | null
+          description?: string | null
+          nights?: number
+        }
+        Update: {
+          id?: string
+          tripId?: string
+          cityStopId?: string | null
+          name?: string
+          type?: string
+          tier?: string
+          costPerNight?: number
+          currency?: string
+          location?: string | null
+          description?: string | null
+          nights?: number
+        }
+        Relationships: []
+      }
+      TransportOption: {
+        Row: {
+          id: string
+          tripId: string
+          mode: string
+          scope: string
+          fromCity: string | null
+          toCity: string | null
+          cost: number | null
+          currency: string
+          duration: string | null
+          tips: string | null
+          selected: boolean
+        }
+        Insert: {
+          id: string
+          tripId: string
+          mode: string
+          scope?: string
+          fromCity?: string | null
+          toCity?: string | null
+          cost?: number | null
+          currency?: string
+          duration?: string | null
+          tips?: string | null
+          selected?: boolean
+        }
+        Update: {
+          id?: string
+          tripId?: string
+          mode?: string
+          scope?: string
+          fromCity?: string | null
+          toCity?: string | null
+          cost?: number | null
+          currency?: string
+          duration?: string | null
+          tips?: string | null
+          selected?: boolean
         }
         Relationships: []
       }

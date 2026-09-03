@@ -12,7 +12,7 @@ export const getTripExpenses = async (tripId: string) => {
       .from('Expense')
       .select('*')
       .eq('tripId', tripId)
-      .order('date', { ascending: false });
+      .order('createdAt', { ascending: false });
 
     if (error) {
       console.error('Error fetching expenses:', error);

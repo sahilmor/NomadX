@@ -1,7 +1,14 @@
 // src/components/trip-details/BudgetTab.tsx
 
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
+import { ShoppingBag, Receipt } from "lucide-react";
+import { useTripExpenses } from "@/services/expense.service";
+import {
+  useTripTransport,
+  type TransportOption,
+  type CityStopInfo,
+} from "@/services/stays-transport.service";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import {
   Card,
@@ -449,84 +456,150 @@ interface BudgetTabProps {
   tripId: string;
   trip: TripWithOwner;
   itinerary: ItineraryItem[];
+  cityStops: CityStopInfo[];
   isLoadingItinerary: boolean;
 }
+
+// One canonical category model shared by the summary cards and the log badges.
+type Category = "Stay" | "Food" | "Transport" | "Activities" | "Shopping" | "Other";
+
+const categoryMeta: Record<Category, { icon: typeof Home; color: string; badgeClass: string }> = {
+  Stay: { icon: Home, color: "text-primary", badgeClass: "bg-primary/10 text-primary" },
+  Food: { icon: Utensils, color: "text-coral", badgeClass: "bg-coral/10 text-coral" },
+  Transport: { icon: Car, color: "text-mustard", badgeClass: "bg-mustard/10 text-mustard" },
+  Activities: { icon: Ticket, color: "text-success", badgeClass: "bg-success/10 text-success" },
+  Shopping: { icon: ShoppingBag, color: "text-purple-500", badgeClass: "bg-purple-500/10 text-purple-500" },
+  Other: { icon: Receipt, color: "text-muted-foreground", badgeClass: "bg-muted text-muted-foreground" },
+};
+
+const normalizeCategory = (raw: string): Category => {
+  switch (raw) {
+    case "STAY": return "Stay";
+    case "FOOD": return "Food";
+    case "TRANSPORT": case "MOVE": return "Transport";
+    case "SIGHT": case "ACTIVITY": case "ENTERTAINMENT": return "Activities";
+    case "SHOPPING": return "Shopping";
+    default: return "Other";
+  }
+};
 
 const BudgetTab: React.FC<BudgetTabProps> = ({
   tripId,
   trip,
   itinerary,
+  cityStops,
   isLoadingItinerary,
 }) => {
+  const { data: expenseRows, isLoading: isLoadingExpenses } = useTripExpenses(tripId);
+  const { data: transportOptions } = useTripTransport(tripId);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ItineraryItem | null>(
     null
   );
 
+  // Nights available per city — used to multiply per-day local transport costs.
+  const cityNightsByName = useMemo(() => {
+    const map: Record<string, number> = {};
+    cityStops.forEach((cs) => {
+      try {
+        map[cs.name.toLowerCase()] = Math.max(1, differenceInDays(new Date(cs.departure), new Date(cs.arrival)));
+      } catch {
+        map[cs.name.toLowerCase()] = 1;
+      }
+    });
+    return map;
+  }, [cityStops]);
+
+  const optionById = useMemo(() => {
+    const m = new Map<string, TransportOption>();
+    (transportOptions || []).forEach((o) => m.set(o.id, o));
+    return m;
+  }, [transportOptions]);
+
   const budgetData = useMemo(() => {
-    if (!itinerary || !trip) {
-      return {
-        totalSpent: 0,
-        spentOnStay: 0,
-        spentOnFood: 0,
-        spentOnMove: 0,
-        spentOnActivity: 0,
-        expenseItems: [] as ItineraryItem[],
-        budgetRemaining: trip?.budgetCap || 0,
-        budgetProgress: 0,
-      };
+    type UnifiedExpense = {
+      key: string;
+      date: Date | null;
+      title: string;
+      category: Category;
+      amount: number;
+      source: "pick" | "manual";
+      raw: ItineraryItem | null;
+    };
+
+    const items: UnifiedExpense[] = [];
+
+    // 1) Exact picks from the Expense table (stays + transport the user chose).
+    //    Stay amounts are already costPerNight x nights. LOCAL transport picks
+    //    are per-day, so they are multiplied by the nights in that city.
+    for (const e of expenseRows || []) {
+      let amount = e.amount || 0;
+      let title = (e.notes || e.category).replace(/^Stay pick \S+ \u2014 /, "").replace(/^Transport pick \S+ \u2014 /, "");
+
+      const pickMatch = (e.notes || "").match(/^Transport pick (\S+)/);
+      if (pickMatch) {
+        const opt = optionById.get(pickMatch[1]);
+        if (opt && opt.scope === "LOCAL") {
+          const nights = cityNightsByName[(opt.fromCity || "").toLowerCase()];
+          if (nights && nights > 1 && opt.cost != null) {
+            amount = opt.cost * nights;
+            title = `${title} \u00d7 ${nights} days`;
+          }
+        }
+      }
+
+      items.push({
+        key: `exp-${e.id}`,
+        date: e.createdAt ? new Date(e.createdAt) : null,
+        title,
+        category: normalizeCategory(e.category),
+        amount,
+        source: "pick",
+        raw: null,
+      });
     }
 
-    const expenseItems = itinerary.filter(
-      (item) => item.cost && item.cost > 0
+    // 2) Plan estimates from the itinerary — but ONLY food and activities.
+    //    Stay and Move costs come from the user's picks instead, so they are
+    //    excluded here to avoid double counting.
+    for (const item of itinerary || []) {
+      if (!item.cost || item.cost <= 0) continue;
+      if (item.kind === "STAY" || item.kind === "MOVE") continue;
+      items.push({
+        key: `itin-${item.id}`,
+        date: item.day ? new Date(item.day) : null,
+        title: item.title,
+        category: normalizeCategory(item.kind),
+        amount: item.cost,
+        source: "manual",
+        raw: item,
+      });
+    }
+
+    const totals: Record<Category, number> = {
+      Stay: 0, Food: 0, Transport: 0, Activities: 0, Shopping: 0, Other: 0,
+    };
+    let totalSpent = 0;
+    for (const it of items) {
+      totals[it.category] += it.amount;
+      totalSpent += it.amount;
+    }
+
+    items.sort(
+      (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0)
     );
 
-    let totalSpent = 0;
-    let spentOnStay = 0;
-    let spentOnFood = 0;
-    let spentOnMove = 0;
-    let spentOnActivity = 0;
-
-    for (const item of expenseItems) {
-      const cost = item.cost || 0;
-      totalSpent += cost;
-      switch (item.kind) {
-        case "STAY":
-          spentOnStay += cost;
-          break;
-        case "FOOD":
-          spentOnFood += cost;
-          break;
-        case "MOVE":
-          spentOnMove += cost;
-          break;
-        case "SIGHT":
-        case "ACTIVITY":
-          spentOnActivity += cost;
-          break;
-        default:
-          break;
-      }
-    }
-
-    const totalBudget = trip.budgetCap || 0;
-    const budgetRemaining = totalBudget - totalSpent;
-    const budgetProgress =
-      totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-
+    const totalBudget = trip?.budgetCap || 0;
     return {
+      items,
+      totals,
       totalSpent,
-      spentOnStay,
-      spentOnFood,
-      spentOnMove,
-      spentOnActivity,
-      expenseItems,
-      budgetRemaining,
-      budgetProgress,
+      budgetRemaining: totalBudget - totalSpent,
+      budgetProgress: totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0,
     };
-  }, [itinerary, trip]);
+  }, [expenseRows, itinerary, trip, cityNightsByName, optionById]);
 
-  if (isLoadingItinerary) {
+  if (isLoadingItinerary || isLoadingExpenses) {
     return <LoadingSpinner text="Loading budget..." />;
   }
 
@@ -586,56 +659,36 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         <CardHeader>
           <CardTitle className="text-lg sm:text-xl">Spending by Category</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
-            <div className="rounded-full bg-primary/10 p-2">
-              <Home className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">Stay</p>
-              <p className="font-bold text-sm sm:text-base">
-                {budgetData.spentOnStay.toFixed(2)}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
-            <div className="rounded-full bg-coral/10 p-2">
-              <Utensils className="w-5 h-5 text-coral" />
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">Food</p>
-              <p className="font-bold text-sm sm:text-base">
-                {budgetData.spentOnFood.toFixed(2)}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
-            <div className="rounded-full bg-mustard/10 p-2">
-              <Car className="w-5 h-5 text-mustard" />
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">Transport</p>
-              <p className="font-bold text-sm sm:text-base">
-                {budgetData.spentOnMove.toFixed(2)}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4">
-            <div className="rounded-full bg-success/10 p-2">
-              <Ticket className="w-5 h-5 text-success" />
-            </div>
-            <div>
-              <p className="text-xs sm:text-sm text-muted-foreground">Activities</p>
-              <p className="font-bold text-sm sm:text-base">
-                {budgetData.spentOnActivity.toFixed(2)}
-              </p>
-            </div>
-          </div>
+        <CardContent className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {(["Stay", "Food", "Transport", "Activities", "Shopping", "Other"] as Category[])
+            .filter(
+              (c) =>
+                budgetData.totals[c] > 0 ||
+                ["Stay", "Food", "Transport", "Activities"].includes(c)
+            )
+            .map((c) => {
+              const Icon = categoryMeta[c].icon;
+              return (
+                <div
+                  key={c}
+                  className="flex items-center space-x-3 rounded-lg bg-muted p-3 sm:p-4"
+                >
+                  <div className="rounded-full bg-background p-2">
+                    <Icon className={`w-5 h-5 ${categoryMeta[c].color}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground">{c}</p>
+                    <p className="font-bold text-sm sm:text-base truncate">
+                      {budgetData.totals[c].toFixed(2)} {trip.currency}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
         </CardContent>
       </Card>
 
-      {/* Expense Log */}
-      <Card className="border-0 bg-card">
+            <Card className="border-0 bg-card">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="text-lg sm:text-xl">Expense Log</CardTitle>
           <Button
@@ -648,7 +701,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
           </Button>
         </CardHeader>
         <CardContent>
-          {budgetData.expenseItems.length > 0 ? (
+          {budgetData.items.length > 0 ? (
             <div className="w-full overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -665,26 +718,42 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {budgetData.expenseItems.map((item) => (
-                    <TableRow key={item.id}>
+                  {budgetData.items.map((item) => (
+                    <TableRow key={item.key}>
                       <TableCell className="text-xs sm:text-sm">
-                        {format(new Date(item.day), "MMM d")}
+                        {item.date ? format(item.date, "MMM d") : "—"}
                       </TableCell>
                       <TableCell className="font-medium text-xs sm:text-sm">
                         {item.title}
+                        {item.source === "pick" && (
+                          <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                            picked · exact
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs sm:text-sm">
-                        <Badge variant="outline">{item.kind}</Badge>
+                        <Badge
+                          variant="outline"
+                          className={categoryMeta[item.category].badgeClass}
+                        >
+                          {item.category}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium text-xs sm:text-sm">
-                        {item.cost?.toFixed(2)} {trip.currency}
+                        {item.amount.toFixed(2)} {trip.currency}
                       </TableCell>
                       <TableCell className="text-right">
-                        <ExpenseRowActions
-                          expense={item}
-                          tripId={tripId}
-                          onEdit={handleEditExpense}
-                        />
+                        {item.source === "manual" && item.raw ? (
+                          <ExpenseRowActions
+                            expense={item.raw}
+                            tripId={tripId}
+                            onEdit={handleEditExpense}
+                          />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">
+                            manage in Stays / Transport
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -693,13 +762,13 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
             </div>
           ) : (
             <p className="text-muted-foreground text-center text-sm sm:text-base">
-              No expenses logged in your itinerary yet.
+              No expenses yet — pick stays and transport, or add one manually.
             </p>
           )}
         </CardContent>
       </Card>
 
-      {/* Add/Edit Expense Modal */}
+      
       <ExpenseDialog
         tripId={tripId}
         isOpen={isExpenseModalOpen}

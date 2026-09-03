@@ -170,6 +170,7 @@ const TripCreator = () => {
         endDate: tripData.endDate,
         currency: tripData.currency,
         budgetCap: tripData.budget ? parseFloat(tripData.budget) : null,
+        totalTravelers: Math.max(1, tripData.travelers || 1),
         visibility: "PRIVATE" as const,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
