@@ -882,45 +882,89 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
               </p>
             ) : (
               <div className="space-y-2">
-                {people
-                  .filter((p) => p.id !== user?.id)
-                  .map((p) => {
-                    const net = balances.get(p.id) || 0;
-                    return (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between rounded-lg bg-muted/30 p-3"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={p.image ?? undefined} />
-                            <AvatarFallback>
-                              {p.label[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm font-medium">{p.label}</span>
-                        </div>
-                        <span
-                          className={`text-sm font-semibold ${
-                            net > 0
-                              ? "text-success"
-                              : net < 0
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {net > 0
-                            ? `owes you ${net.toFixed(2)}`
-                            : net < 0
-                            ? `you owe ${Math.abs(net).toFixed(2)}`
-                            : "settled up"}
+                {/* Net position of the current user across all splits */}
+                {(() => {
+                  const others = people.filter((p) => p.id !== user?.id);
+                  const netSum = others.reduce(
+                    (s, p) => s + (balances.get(p.id) || 0),
+                    0
+                  );
+                  return netSum !== 0 ? (
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm">
+                      {netSum > 0 ? (
+                        <span>
+                          Overall,{" "}
+                          <span className="font-semibold text-success">
+                            you are owed {netSum.toFixed(2)} {trip.currency}
+                          </span>{" "}
+                          across all splits.
+                        </span>
+                      ) : (
+                        <span>
+                          Overall, you owe{" "}
+                          <span className="font-semibold text-destructive">
+                            {Math.abs(netSum).toFixed(2)} {trip.currency}
+                          </span>{" "}
+                          across all splits.
+                        </span>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
+                {people.map((p) => {
+                  const isMe = p.id === user?.id;
+                  const net = isMe
+                    ? -people
+                        .filter((q) => q.id !== user?.id)
+                        .reduce((s, q) => s + (balances.get(q.id) || 0), 0)
+                    : balances.get(p.id) || 0;
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-lg bg-muted/30 p-3"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={p.image ?? undefined} />
+                          <AvatarFallback>
+                            {p.label[0]?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">
+                          {p.label}
+                          {isMe && (
+                            <span className="text-xs text-muted-foreground">
+                              {" "}
+                              (you)
+                            </span>
+                          )}
                         </span>
                       </div>
-                    );
-                  })}
+                      <span
+                        className={`text-sm font-semibold ${
+                          isMe
+                            ? "text-muted-foreground"
+                            : net > 0
+                            ? "text-success"
+                            : net < 0
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {isMe
+                          ? `${net !== 0 ? (net > 0 ? `owed ${net.toFixed(2)}` : `owes ${Math.abs(net).toFixed(2)}`) : "settled up"}`
+                          : net > 0
+                          ? `owes you ${net.toFixed(2)}`
+                          : net < 0
+                          ? `you owe ${Math.abs(net).toFixed(2)}`
+                          : "settled up"}
+                      </span>
+                    </div>
+                  );
+                })}
                 <p className="text-xs text-muted-foreground">
-                  Based on equal splits you are part of. Mark people as paid
-                  back in the split dialog.
+                  Balances are from your perspective. Mark people as paid back
+                  in the split dialog.
                 </p>
               </div>
             )}
