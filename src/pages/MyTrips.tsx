@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { getUserTrips } from "@/services/trip.service";
+import { deleteTrip, getUserTrips } from "@/services/trip.service";
 import {
   Card,
   CardContent,
@@ -11,19 +11,49 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/ui/use-toast";
 import LoadingSpinner from "@/components/LoadingSpinner";
-import { Plus, MapPin, Calendar, DollarSign, Users } from "lucide-react";
+import { Plus, MapPin, Calendar, DollarSign, Users, Trash2 } from "lucide-react";
 
 // Define the type for a single trip based on getUserTrips response
 type Trip = Awaited<ReturnType<typeof getUserTrips>>["data"];
 type TripCardProps = {
   trip: NonNullable<Trip>[0];
+  canDelete: boolean;
+  onDelete: (trip: NonNullable<Trip>[0]) => void;
 };
 
 // Sub-component for a single trip card
-const TripCard: React.FC<TripCardProps> = ({ trip }) => {
+const TripCard: React.FC<TripCardProps> = ({ trip, canDelete, onDelete }) => {
   return (
-    <Link to={`/my-trips/${trip.id}`} className="group block h-full">
+    <div className="group relative block h-full">
+      {canDelete && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Delete ${trip.title}`}
+          className="absolute top-2 right-2 z-10 h-8 w-8 rounded-full bg-background/80 opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(trip);
+          }}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      )}
+    <Link to={`/my-trips/${trip.id}`} className="block h-full">
       <Card className="h-full border-0 bg-card transition-all duration-300 card-hover flex flex-col">
         {/* Placeholder for a map or image */}
         <div className="h-32 sm:h-40 w-full rounded-t-lg bg-gradient-to-r from-primary/10 to-coral/10 flex items-center justify-center">
@@ -58,11 +88,35 @@ const TripCard: React.FC<TripCardProps> = ({ trip }) => {
         </CardContent>
       </Card>
     </Link>
+    </div>
   );
 };
 
 const MyTrips = () => {
   const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const deleteTripMutation = useMutation({
+    mutationFn: deleteTrip,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["userTrips"] });
+      queryClient.invalidateQueries({ queryKey: ["upcomingTrips"] });
+      toast({
+        title: "Trip deleted",
+        description: "The trip and all its data have been removed.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: `Could not delete trip: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const [tripToDelete, setTripToDelete] = useState<NonNullable<Trip>[0] | null>(null);
 
   const {
     data: tripsResult,
@@ -72,6 +126,8 @@ const MyTrips = () => {
     queryFn: () => getUserTrips(user!.id),
     enabled: !!user,
   });
+
+  const isDeleting = deleteTripMutation.isPending;
 
   const isLoading = authLoading || isLoadingTrips;
   const trips = tripsResult?.data;
@@ -112,7 +168,12 @@ const MyTrips = () => {
       {trips && trips.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
           {trips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} />
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              canDelete={trip.ownerId === user?.id}
+              onDelete={setTripToDelete}
+            />
           ))}
         </div>
       ) : (
@@ -135,6 +196,40 @@ const MyTrips = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete trip confirmation */}
+      <AlertDialog
+        open={!!tripToDelete}
+        onOpenChange={(open) => {
+          if (!open) setTripToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete trip?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {tripToDelete
+                ? `"${tripToDelete.title}" and all its data — itinerary, expenses, stays, transport picks and members — will be permanently deleted. This cannot be undone.`
+                : "This trip will be permanently deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!tripToDelete) return;
+                deleteTripMutation.mutate(tripToDelete.id, {
+                  onSettled: () => setTripToDelete(null),
+                });
+              }}
+            >
+              {isDeleting ? "Deleting..." : "Delete trip"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -79,4 +79,5 @@ temp/
 # ------------------------------
 # Supabase Edge Functions (optional logs)
 # ------------------------------
-supabase/functions/.cache
+supabase/functions/.cachenomadx-stays-transport.zip
+bun.lock
