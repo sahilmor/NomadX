@@ -243,6 +243,7 @@ const TripDetail = () => {
               trip={trip}
               itinerary={itinerary || []}
               cityStops={cityStops || []}
+              members={(members || []) as TripMemberWithUser[]}
               isLoadingItinerary={isLoadingItinerary}
             />
           </TabsContent>

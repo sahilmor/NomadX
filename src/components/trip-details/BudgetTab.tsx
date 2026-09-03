@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format, differenceInDays } from "date-fns";
-import { ShoppingBag, Receipt } from "lucide-react";
+import { ShoppingBag, Receipt, Users } from "lucide-react";
 import { useTripExpenses } from "@/services/expense.service";
+import {
+  useTripSplits,
+  useReplaceSplits,
+  useToggleSplitSettled,
+  type SplitShareRow,
+} from "@/services/split.service";
+import type { TripMemberWithUser } from "@/services/trip.service";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   useTripTransport,
   type TransportOption,
@@ -37,6 +45,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import {
   Dialog,
@@ -457,6 +466,7 @@ interface BudgetTabProps {
   trip: TripWithOwner;
   itinerary: ItineraryItem[];
   cityStops: CityStopInfo[];
+  members: TripMemberWithUser[];
   isLoadingItinerary: boolean;
 }
 
@@ -488,10 +498,17 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
   trip,
   itinerary,
   cityStops,
+  members,
   isLoadingItinerary,
 }) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const { data: expenseRows, isLoading: isLoadingExpenses } = useTripExpenses(tripId);
   const { data: transportOptions } = useTripTransport(tripId);
+  const { data: splitRows } = useTripSplits(tripId);
+  const replaceSplitsMutation = useReplaceSplits(tripId);
+  const toggleSettledMutation = useToggleSplitSettled(tripId);
+  const [splitExpense, setSplitExpense] = useState<{ id: string; title: string; amount: number } | null>(null);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ItineraryItem | null>(
     null
@@ -516,6 +533,49 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
     return m;
   }, [transportOptions]);
 
+  // People eligible for splits: owner + invited members.
+  const people = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { id: string; label: string; image: string | null }[] = [];
+    const push = (id: string | null | undefined, name: string | null | undefined, username: string | null | undefined, image: string | null | undefined) => {
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      list.push({ id, label: name || username || "Member", image: image ?? null });
+    };
+    (members || []).forEach((m) => push(m.userId, m.User?.name, m.User?.username, m.User?.image));
+    push(trip.ownerId, trip.Owner?.name, trip.Owner?.username, trip.Owner?.image);
+    return list;
+  }, [members, trip]);
+
+  const splitsByExpense = useMemo(() => {
+    const m = new Map<string, SplitShareRow[]>();
+    (splitRows || []).forEach((r) => {
+      const arr = m.get(r.expenseId) || [];
+      arr.push(r);
+      m.set(r.expenseId, arr);
+    });
+    return m;
+  }, [splitRows]);
+
+  // Net balances relative to the current user, across all split expenses.
+  const balances = useMemo(() => {
+    const net = new Map<string, number>();
+    for (const r of splitRows || []) {
+      const payer = r.Expense?.payerId || trip.ownerId;
+      if (r.userId === payer || r.settled) continue;
+      if (r.userId === user?.id) {
+        // I owe the payer
+        net.set(payer, (net.get(payer) || 0) - r.share);
+      } else if (payer === user?.id) {
+        // They owe me
+        net.set(r.userId, (net.get(r.userId) || 0) + r.share);
+      } else {
+        // Between two others — not my business, skip
+      }
+    }
+    return net;
+  }, [splitRows, trip, user]);
+
   const budgetData = useMemo(() => {
     type UnifiedExpense = {
       key: string;
@@ -525,6 +585,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
       amount: number;
       source: "pick" | "manual";
       raw: ItineraryItem | null;
+      expenseId: string | null;
     };
 
     const items: UnifiedExpense[] = [];
@@ -556,6 +617,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         amount,
         source: "pick",
         raw: null,
+        expenseId: e.id,
       });
     }
 
@@ -573,6 +635,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         amount: item.cost,
         source: "manual",
         raw: item,
+        expenseId: null,
       });
     }
 
@@ -688,7 +751,70 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         </CardContent>
       </Card>
 
-            <Card className="border-0 bg-card">
+      {/* Split & Settle */}
+      {people.length > 1 && (
+        <Card className="border-0 bg-card">
+          <CardHeader>
+            <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+              <Users className="w-5 h-5 text-mustard" />
+              Split &amp; Settle
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(splitRows || []).length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No expenses split yet. Use the Split button on an expense below
+                to divide it between members.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {people
+                  .filter((p) => p.id !== user?.id)
+                  .map((p) => {
+                    const net = balances.get(p.id) || 0;
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between rounded-lg bg-muted/30 p-3"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={p.image ?? undefined} />
+                            <AvatarFallback>
+                              {p.label[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{p.label}</span>
+                        </div>
+                        <span
+                          className={`text-sm font-semibold ${
+                            net > 0
+                              ? "text-success"
+                              : net < 0
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {net > 0
+                            ? `owes you ${net.toFixed(2)}`
+                            : net < 0
+                            ? `you owe ${Math.abs(net).toFixed(2)}`
+                            : "settled up"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                <p className="text-xs text-muted-foreground">
+                  Based on equal splits you are part of. Mark people as paid
+                  back in the split dialog.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-0 bg-card">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <CardTitle className="text-lg sm:text-xl">Expense Log</CardTitle>
           <Button
@@ -711,6 +837,9 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
                     <TableHead className="text-xs sm:text-sm">Category</TableHead>
                     <TableHead className="text-right w-32 text-xs sm:text-sm">
                       Cost
+                    </TableHead>
+                    <TableHead className="text-center w-20 text-xs sm:text-sm">
+                      Split
                     </TableHead>
                     <TableHead className="w-20 text-right text-xs sm:text-sm">
                       Actions
@@ -742,6 +871,28 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
                       <TableCell className="text-right font-medium text-xs sm:text-sm">
                         {item.amount.toFixed(2)} {trip.currency}
                       </TableCell>
+                      <TableCell className="text-center">
+                        {item.expenseId ? (
+                          <Button
+                            type="button"
+                            variant={splitsByExpense.get(item.expenseId)?.length ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-7 gap-1 px-2 text-xs"
+                            onClick={() =>
+                              setSplitExpense({
+                                id: item.expenseId as string,
+                                title: item.title,
+                                amount: item.amount,
+                              })
+                            }
+                          >
+                            <Users className="h-3.5 w-3.5" />
+                            {splitsByExpense.get(item.expenseId)?.length || ""}
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {item.source === "manual" && item.raw ? (
                           <ExpenseRowActions
@@ -769,6 +920,36 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
       </Card>
 
       
+      <SplitDialog
+        expense={splitExpense}
+        people={people}
+        splitsByExpense={splitsByExpense}
+        payerId={trip.ownerId}
+        currency={trip.currency || ""}
+        isSaving={replaceSplitsMutation.isPending}
+        isToggling={toggleSettledMutation.isPending}
+        onClose={() => setSplitExpense(null)}
+        onSave={(shares) => {
+          if (!splitExpense) return;
+          replaceSplitsMutation.mutate(
+            { expenseId: splitExpense.id, shares },
+            {
+              onSuccess: () => {
+                toast({ title: "Split saved" });
+                setSplitExpense(null);
+              },
+              onError: (e: any) =>
+                toast({
+                  title: "Error",
+                  description: `Could not save split: ${e.message}`,
+                  variant: "destructive",
+                }),
+            }
+          );
+        }}
+        onToggleSettled={(id, settled) => toggleSettledMutation.mutate({ id, settled })}
+      />
+
       <ExpenseDialog
         tripId={tripId}
         isOpen={isExpenseModalOpen}
@@ -779,6 +960,166 @@ const BudgetTab: React.FC<BudgetTabProps> = ({
         editingExpense={editingExpense}
       />
     </div>
+  );
+};
+
+
+// -------------------- SPLIT DIALOG --------------------
+
+interface SplitDialogProps {
+  expense: { id: string; title: string; amount: number } | null;
+  people: { id: string; label: string; image: string | null }[];
+  splitsByExpense: Map<string, SplitShareRow[]>;
+  payerId: string;
+  currency: string;
+  isSaving: boolean;
+  isToggling: boolean;
+  onClose: () => void;
+  onSave: (
+    shares: { userId: string; share: number; settled: boolean }[]
+  ) => void;
+  onToggleSettled: (id: string, settled: boolean) => void;
+}
+
+const SplitDialog: React.FC<SplitDialogProps> = ({
+  expense,
+  people,
+  splitsByExpense,
+  payerId,
+  currency,
+  isSaving,
+  isToggling,
+  onClose,
+  onSave,
+  onToggleSettled,
+}) => {
+  const isOpen = !!expense;
+  const existing = expense ? splitsByExpense.get(expense.id) || [] : [];
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (expense) {
+      const rows = splitsByExpense.get(expense.id) || [];
+      setSelected(
+        new Set(rows.length > 0 ? rows.map((r) => r.userId) : people.map((p) => p.id))
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expense?.id]);
+
+  const perHead =
+    expense && selected.size > 0 ? expense.amount / selected.size : 0;
+
+  const togglePerson = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Split expense</DialogTitle>
+        </DialogHeader>
+
+        {expense && (
+          <div className="space-y-4 py-1">
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-sm font-medium">{expense.title}</p>
+              <p className="text-xs text-muted-foreground">
+                {expense.amount.toFixed(2)} {currency}
+                {selected.size > 0 &&
+                  ` · ${(expense.amount / selected.size).toFixed(2)} each`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {people.map((p) => {
+                const isPayer = p.id === payerId;
+                const row = existing.find((r) => r.userId === p.id);
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2"
+                  >
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={selected.has(p.id)}
+                        onChange={() => togglePerson(p.id)}
+                      />
+                      <span className="text-sm">{p.label}</span>
+                      {isPayer && (
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          paid
+                        </span>
+                      )}
+                    </label>
+                    {row && row.userId !== payerId ? (
+                      <label className="flex items-center space-x-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5"
+                          checked={row.settled}
+                          disabled={isToggling}
+                          onChange={() => onToggleSettled(row.id, !row.settled)}
+                        />
+                        paid back
+                      </label>
+                    ) : selected.has(p.id) ? (
+                      <span className="text-xs text-muted-foreground">
+                        {perHead.toFixed(2)}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="btn-coral"
+                disabled={isSaving || selected.size === 0}
+                onClick={() =>
+                  onSave(
+                    Array.from(selected).map((userId) => ({
+                      userId,
+                      share: expense.amount / selected.size,
+                      settled: userId === payerId,
+                    }))
+                  )
+                }
+              >
+                {isSaving
+                  ? "Saving..."
+                  : existing.length > 0
+                  ? "Update split"
+                  : "Split equally"}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
