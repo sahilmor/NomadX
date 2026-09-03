@@ -30,6 +30,7 @@ import {
 import { format, differenceInDays } from "date-fns";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useTripRealtime } from "@/services/realtime.service";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import {
   Tabs,
@@ -86,6 +87,9 @@ const TripDetail = () => {
   const { data: transportOptions, isLoading: isLoadingTransport } =
     useTripTransport(tripId);
   const { data: cityStops } = useTripCityStops(tripId);
+
+  // --- Realtime collaboration (phase 6) ---
+  const { isLive } = useTripRealtime(tripId);
 
   // NOTE: all hooks must stay ABOVE the early returns below, or React
   // unmounts the tree ("rendered fewer hooks than expected") -> white page.
@@ -200,6 +204,18 @@ const TripDetail = () => {
                 <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-success inline-block" />
               )}
             </Button>
+            {isLive && (
+              <span
+                className="hidden md:inline-flex items-center self-center gap-1.5 text-xs text-muted-foreground flex-shrink-0"
+                title="Changes by trip members appear here live"
+              >
+                <span className="relative flex w-2 h-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
+                  <span className="relative inline-flex rounded-full w-2 h-2 bg-success" />
+                </span>
+                Live
+              </span>
+            )}
           </div>
         </div>
 
