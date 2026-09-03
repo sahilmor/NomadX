@@ -389,27 +389,77 @@ const TripCreator = () => {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Total Travelers
-              </Label>
-              <div className="flex items-center space-x-3 mt-2">
-                <span className="text-3xl sm:text-4xl font-bold text-foreground w-12 text-center">
-                  {tripData.travelers}
-                </span>
-                <span className="text-xs sm:text-sm text-muted-foreground">
-                  (You + {tripData.invitedFriends.length} friend
-                  {tripData.invitedFriends.length === 1 ? "" : "s"})
-                </span>
+            {/* OPTION 1: manual headcount, no accounts needed */}
+            <div className="rounded-lg bg-muted/30 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">People without accounts</p>
+                  <p className="text-xs text-muted-foreground">
+                    No signup needed — just count them.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    aria-label="Remove one traveler"
+                    disabled={
+                      tripData.travelers <= 1 + tripData.invitedFriends.length
+                    }
+                    onClick={() =>
+                      handleInputChange(
+                        "travelers",
+                        Math.max(
+                          1 + tripData.invitedFriends.length,
+                          tripData.travelers - 1
+                        )
+                      )
+                    }
+                  >
+                    -
+                  </Button>
+                  <span className="text-2xl sm:text-3xl font-bold text-foreground w-10 text-center">
+                    {Math.max(
+                      0,
+                      tripData.travelers - 1 - tripData.invitedFriends.length
+                    )}
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    aria-label="Add one traveler"
+                    onClick={() =>
+                      handleInputChange("travelers", tripData.travelers + 1)
+                    }
+                  >
+                    +
+                  </Button>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground text-right sm:text-left">
+                Total travelers:{" "}
+                <span className="font-semibold text-foreground">
+                  {tripData.travelers}
+                </span>{" "}
+                (you + {tripData.invitedFriends.length} invited friend
+                {tripData.invitedFriends.length === 1 ? "" : "s"} +{" "}
+                {Math.max(
+                  0,
+                  tripData.travelers - 1 - tripData.invitedFriends.length
+                )}{" "}
+                without accounts)
+              </p>
             </div>
 
+            {/* OPTION 2: invite friends who exist on the app */}
             <div className="space-y-2">
               <Label
                 htmlFor="invite"
                 className="text-sm font-medium"
               >
-                Invite Friends (optional — by name, username or email)
+                Friends with accounts (optional) — search by name, username or email
               </Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
