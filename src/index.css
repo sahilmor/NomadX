@@ -222,3 +222,24 @@
 .leaflet-bottom {
   z-index: 0 !important;
 }
+/* --- Print / PDF export (phase 7) --- */
+@media print {
+  /* Strip app chrome: header/nav, screen toolbars, toasts. */
+  header nav,
+  .print-hide,
+  .toaster {
+    display: none !important;
+  }
+  html,
+  body {
+    background: white !important;
+  }
+  .print-view {
+    padding-top: 0 !important;
+    max-width: none !important;
+  }
+  /* Keep day blocks and cards from splitting mid-section. */
+  .break-inside-avoid {
+    break-inside: avoid;
+  }
+}

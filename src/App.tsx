@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 import Notifications from "./pages/Notifications";
+import PrintSummary from "./pages/PrintSummary";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -54,6 +55,7 @@ const App = () => (
                 <Route path="/inspirations/:id" element={<InspirationDetail />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/my-trips/:tripId/summary" element={<PrintSummary />} />
                 <Route path="/my-trips/:tripId" element={<TripDetail />} />
                 <Route path="/friends" element={<Friends />} />
               </Route>

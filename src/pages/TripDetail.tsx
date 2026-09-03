@@ -26,9 +26,12 @@ import {
   Link2,
   Copy,
   Check,
+  FileText,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useTripRealtime } from "@/services/realtime.service";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -60,6 +63,7 @@ import TransportTab from "@/components/trip-details/TransportTab";
 
 const TripDetail = () => {
   const { tripId } = useParams<{ tripId: string }>();
+  const navigate = useNavigate();
   const { isLoading: isAuthLoading } = useAuth();
 
   if (!tripId) {
@@ -216,6 +220,15 @@ const TripDetail = () => {
                 Live
               </span>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start md:self-auto"
+              onClick={() => navigate(`/my-trips/${tripId}/summary`)}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
           </div>
         </div>
 
