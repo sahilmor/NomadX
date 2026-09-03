@@ -112,7 +112,6 @@ const StaysTab = ({ stays, cityStops, tripNights, travelers = 1, onSetNights, is
       {grouped.map(([cityStopId, options]) => {
         const budget = cityNights[cityStopId] ?? tripNights;
         const used = options.reduce((sum, s) => sum + (s.nights > 0 ? s.nights : 0), 0);
-        const remaining = budget - used;
         return (
           <div key={cityStopId} className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-1">
@@ -128,7 +127,7 @@ const StaysTab = ({ stays, cityStops, tripNights, travelers = 1, onSetNights, is
               {options.map((stay) => {
                 const tier = tierConfig[stay.tier] || tierConfig.BUDGET;
                 const picked = stay.nights > 0;
-                const canAdd = remaining > 0 || picked;
+                const canAdd = stay.nights < tripNights;
                 return (
                   <Card
                     key={stay.id}
@@ -210,8 +209,8 @@ const StaysTab = ({ stays, cityStops, tripNights, travelers = 1, onSetNights, is
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          disabled={isSetting || (!canAdd && !picked)}
-                          onClick={() => onSetNights(stay, Math.min(stay.nights + 1, budget))}
+                          disabled={isSetting || (!canAdd && !picked) || stay.nights >= tripNights}
+                          onClick={() => onSetNights(stay, Math.min(stay.nights + 1, tripNights))}
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </Button>

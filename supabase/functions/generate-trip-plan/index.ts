@@ -175,10 +175,10 @@ OUTPUT FORMAT - Return ONLY valid JSON (no markdown, no code blocks) with this e
         "options": [
           {
             "mode": "flight/train/bus/ferry",
-            "duration": "2 hours",
+            "duration": "12h · departs 9:00 PM overnight",
             "cost": 50,
             "currency": "INR",
-            "tips": "Best time to book, booking sites"
+            "tips": "Operator/class (e.g. Volvo AC sleeper), booking site, how far in advance to book"
           }
         ]
       }
@@ -308,6 +308,9 @@ IMPORTANT:
 - Every day in the itinerary MUST have 4-7 scheduled items with specific times
 - For accommodation: ALWAYS give all three tiers (budget/midrange/unique) per city with REALISTIC prices for that city, real hostels/hotels/homestays where possible. COST BASIS MATTERS: hostel/dorm/guesthouse prices are PER PERSON PER NIGHT (a bed), hotel/homestay/apartment prices are PER ROOM PER NIGHT (a room that fits 2-3 people). The trip has ${planRequest.travelers || 1} traveler(s) — scale sensibly for the group.
 - For transportation: ALWAYS include budget alternates — bike/scooty rentals, local buses, metro, autos — alongside cabs and flights, with realistic per-day or per-ride costs and money-saving tips. COST BASIS: bus/train/flight/metro/ferry prices are PER PERSON; cab/taxi/car prices are PER VEHICLE (total for the group, one cab fits 4).
+- TRANSPORT PRICES MUST BE REALISTIC INDIA FARES, not guesses. Use these anchors: private cab = about ₹12-16 per km TOTAL for the vehicle (a 200 km hill route = ₹3000-4500 one way, a sedan fits 4); shared sumo/jeep on hill routes = ₹500-900 PER PERSON; state/private bus = about ₹1-1.5 per km per person AC, less for non-AC (a 300 km Volvo = ₹700-1200 per person); train Sleeper/3AC by distance (e.g. 250 km = ₹150-600 per person); never quote a cab fare higher than what a whole Volvo bus for the same route would cost per person. Quote the CHEAPEST realistic option set, budget travelers do not take flights for under 500 km routes.
+- ROUND TRIPS: for every intercity leg the travelers will come back on, ALSO include the reverse route (to→from) with its own options — a hill trip needs the return leg bookable too. Mark directions clearly, e.g. "Rishikesh to Sonprayag" and "Sonprayag to Rishikesh".
+- Bus/train options must include typical DEPARTURE TIMES in duration (e.g. "12h · departs 9:30 PM overnight") and the operator/class in tips, the way RedBus or MakeMyTrip list them.
 - Provide realistic coordinates (lat/lng) for all locations
 - Ensure all dates are within the trip duration
 - Make activities budget-friendly but also include premium options

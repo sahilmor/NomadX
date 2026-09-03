@@ -232,6 +232,7 @@ const TripDetail = () => {
           <TabsContent value="transport" className="mt-0">
             <TransportTab
               options={transportOptions || []}
+              cityStops={cityStops || []}
               travelers={trip?.totalTravelers || 1}
               onToggle={(opt, picked) => toggleTransport.mutate({ option: opt, picked })}
               isToggling={toggleTransport.isPending}

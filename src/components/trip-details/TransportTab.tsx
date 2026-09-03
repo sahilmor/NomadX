@@ -11,15 +11,20 @@ import {
   Lightbulb,
   ArrowRight,
   MapPin,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { TransportOption } from "@/services/stays-transport.service";
+import type { TransportOption, CityStopInfo } from "@/services/stays-transport.service";
+
+const slugify = (s: string | null | undefined) =>
+  (s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 interface TransportTabProps {
   options: TransportOption[];
+  cityStops?: CityStopInfo[];
   travelers?: number;
   onToggle: (option: TransportOption, picked: boolean) => void;
   isToggling: boolean;
@@ -46,7 +51,20 @@ const modeLabels: Record<string, string> = {
   AUTO_RICKSHAW: "Auto rickshaw",
 };
 
-const TransportTab = ({ options, travelers = 1, onToggle, isToggling }: TransportTabProps) => {
+const TransportTab = ({ options, cityStops = [], travelers = 1, onToggle, isToggling }: TransportTabProps) => {
+  // Which city comes first on the trip — used to label legs outbound vs return.
+  const cityOrder = useMemo(() => {
+    const m = new Map<string, number>();
+    cityStops.forEach((cs, i) => m.set(cs.name.toLowerCase(), i));
+    return m;
+  }, [cityStops]);
+
+  const legDirection = (from: string, to: string): "outbound" | "return" | null => {
+    const fi = cityOrder.get((from || "").toLowerCase());
+    const ti = cityOrder.get((to || "").toLowerCase());
+    if (fi == null || ti == null || fi === ti) return null;
+    return fi < ti ? "outbound" : "return";
+  };
   const intercityLegs = useMemo(() => {
     const map = new Map<string, TransportOption[]>();
     options
@@ -154,6 +172,47 @@ const TransportTab = ({ options, travelers = 1, onToggle, isToggling }: Transpor
               {opt.tips}
             </p>
           )}
+
+          {opt.scope === "INTERCITY" && (opt.mode === "BUS" || opt.mode === "TRAIN") && (
+            <div className="flex gap-1.5 pt-1 border-t">
+              {opt.mode === "BUS" && (
+                <>
+                  <a
+                    className="flex-1"
+                    target="_blank"
+                    rel="noreferrer"
+                    href={`https://www.redbus.in/bus-tickets/${slugify(opt.fromCity)}-to-${slugify(opt.toCity)}`}
+                  >
+                    <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                      <ExternalLink className="w-3 h-3 mr-1" /> RedBus
+                    </Button>
+                  </a>
+                  <a
+                    className="flex-1"
+                    target="_blank"
+                    rel="noreferrer"
+                    href={`https://www.makemytrip.com/bus-tickets/onward/${slugify(opt.fromCity)}-to-${slugify(opt.toCity)}-buses.html`}
+                  >
+                    <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                      <ExternalLink className="w-3 h-3 mr-1" /> MakeMyTrip
+                    </Button>
+                  </a>
+                </>
+              )}
+              {opt.mode === "TRAIN" && (
+                <a
+                  className="flex-1"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={`https://www.ixigo.com/trains/from-${slugify(opt.fromCity)}/to-${slugify(opt.toCity)}`}
+                >
+                  <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                    <ExternalLink className="w-3 h-3 mr-1" /> Check on ixigo
+                  </Button>
+                </a>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -175,10 +234,17 @@ const TransportTab = ({ options, travelers = 1, onToggle, isToggling }: Transpor
 
       {intercityLegs.map(([key, opts]) => {
         const [from, to] = key.split("|");
+        const dir = legDirection(from, to);
         return (
           <div key={key} className="space-y-3">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5 flex-wrap">
               {from} <ArrowRight className="w-4 h-4 text-primary" /> {to}
+              {dir === "outbound" && (
+                <Badge variant="outline" className="text-[10px]">Outbound</Badge>
+              )}
+              {dir === "return" && (
+                <Badge variant="outline" className="text-[10px]">Return</Badge>
+              )}
             </h3>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {opts.map(renderOption)}
