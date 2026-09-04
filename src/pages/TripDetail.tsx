@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 import ItineraryTab from "@/components/trip-details/ItineraryTab";
 import PoisTab from "@/components/trip-details/PoisTab";
