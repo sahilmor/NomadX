@@ -29,8 +29,6 @@ import {
   FileText,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useTripRealtime } from "@/services/realtime.service";
